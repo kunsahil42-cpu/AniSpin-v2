@@ -49,7 +49,8 @@ class HorizontalList extends ConsumerWidget {
                 title: item.title,
                 rating: (item.averageScore ?? "-").toString(),
                 episodes: (item.episodes ?? "?").toString(),
-              );
+               imageUrl: item.coverImage,
+             );
             },
           );
         },
