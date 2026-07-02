@@ -5,9 +5,33 @@ import '../models/home_anime_model.dart';
 class HomeRepository {
   final HomeApi _api = HomeApi();
 
+  // In-memory cache
+  final Map<HomeSection, List<HomeAnimeModel>> _cache = {};
+
+  // Cache timestamps
+  final Map<HomeSection, DateTime> _cacheTime = {};
+
+  static const Duration _cacheDuration = Duration(
+    minutes: 5,
+  );
+
   Future<List<HomeAnimeModel>> getAnime(
-    HomeSection section,
-  ) async {
+    HomeSection section, {
+    bool forceRefresh = false,
+  }) async {
+    // Return cached data if valid
+    if (!forceRefresh &&
+        _cache.containsKey(section) &&
+        _cacheTime.containsKey(section)) {
+      final age = DateTime.now().difference(
+        _cacheTime[section]!,
+      );
+
+      if (age < _cacheDuration) {
+        return _cache[section]!;
+      }
+    }
+
     late final dynamic result;
 
     switch (section) {
@@ -28,7 +52,7 @@ class HomeRepository {
         break;
 
       case HomeSection.continueWatching:
-        // Temporary until Continue Watching is implemented
+        // Temporary until implemented
         result = await _api.getTrendingAnime();
         break;
     }
@@ -42,11 +66,28 @@ class HomeRepository {
     final List media =
         result.data!['Page']['media'];
 
-    return media
+    final anime = media
         .map<HomeAnimeModel>(
-          (anime) =>
-              HomeAnimeModel.fromJson(anime),
+          (item) => HomeAnimeModel.fromJson(item),
         )
         .toList();
+
+    // Save in memory cache
+    _cache[section] = anime;
+    _cacheTime[section] = DateTime.now();
+
+    return anime;
+  }
+
+  /// Clear one section
+  void clearSection(HomeSection section) {
+    _cache.remove(section);
+    _cacheTime.remove(section);
+  }
+
+  /// Clear all cached data
+  void clearAllCache() {
+    _cache.clear();
+    _cacheTime.clear();
   }
 }

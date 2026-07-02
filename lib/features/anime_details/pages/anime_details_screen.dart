@@ -113,7 +113,7 @@ class AnimeDetailsScreen extends ConsumerWidget {
 
               SliverToBoxAdapter(
                 child: Transform.translate(
-                  offset: const Offset(0, -70),
+                  offset: const Offset(0, -100),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -124,17 +124,19 @@ class AnimeDetailsScreen extends ConsumerWidget {
                       children: [
                         Hero(
                           tag: 'anime_$animeId',
-                          child: Material(
-                            color: Colors.transparent,
-                            elevation: 18,
-                            borderRadius:
-                                BorderRadius.circular(20),
-                            child: AnimePoster(
-                              imageUrl:
-                                  animeData.coverImage,
-                            ),
-                          ),
+                          flightShuttleBuilder: (
+                          flightContext,
+                          animation,
+                          flightDirection,
+                          fromHeroContext,
+                          toHeroContext,
+                        ) {
+                          return toHeroContext.widget;
+                        },
+                        child: AnimePoster(
+                          imageUrl: animeData.coverImage,
                         ),
+                      ),
 
                         const SizedBox(height: 28),
 
@@ -187,8 +189,20 @@ class AnimeDetailsScreen extends ConsumerWidget {
                              StatusChip(
                                status: animeData.status,
                              ),
-                             const FavoriteButton(),
-                         ],
+                             FavoriteButton(
+                               animeId: animeData.id,
+                               romajiTitle: animeData.romajiTitle,
+                               englishTitle: animeData.englishTitle,
+                               coverImage: animeData.coverImage,
+                               bannerImage: animeData.bannerImage,
+                               status: animeData.status,
+                               studio: animeData.studio,
+                               averageScore: animeData.averageScore,
+                               episodes: animeData.episodes,
+                               season: animeData.season,
+                               seasonYear: animeData.seasonYear,
+                            ),
+                          ],
                         ),
 
                         const SizedBox(height: 22),

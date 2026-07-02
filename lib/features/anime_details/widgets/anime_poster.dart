@@ -11,41 +11,57 @@ class AnimePoster extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 270,
+    return SizedBox(
       width: 180,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
-            blurRadius: 30,
-            spreadRadius: 2,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: CachedNetworkImage(
-          imageUrl: imageUrl,
-          fit: BoxFit.cover,
-          fadeInDuration: const Duration(milliseconds: 300),
-          placeholder: (context, url) => Container(
-            color: Colors.grey.shade900,
-            child: const Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
+      child: AspectRatio(
+        aspectRatio: 2 / 3,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.45),
+                blurRadius: 30,
+                spreadRadius: 2,
+                offset: const Offset(0, 14),
               ),
-            ),
+            ],
           ),
-          errorWidget: (context, url, error) => Container(
-            color: Colors.grey.shade800,
-            child: const Center(
-              child: Icon(
-                Icons.movie_rounded,
-                color: Colors.white54,
-                size: 70,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: CachedNetworkImage(
+              imageUrl: imageUrl,
+
+              fit: BoxFit.cover,
+
+              // 🚀 Performance
+              memCacheWidth: 360,
+              memCacheHeight: 540,
+              maxWidthDiskCache: 360,
+              maxHeightDiskCache: 540,
+
+              filterQuality: FilterQuality.low,
+
+              fadeInDuration: const Duration(
+                milliseconds: 180,
+              ),
+
+              fadeOutDuration: Duration.zero,
+
+              placeholder: (context, url) => Container(
+                color: const Color(0xFF1B1B1B),
+              ),
+
+              errorWidget: (context, url, error) =>
+                  Container(
+                color: Colors.grey.shade800,
+                child: const Center(
+                  child: Icon(
+                    Icons.movie_rounded,
+                    color: Colors.white54,
+                    size: 70,
+                  ),
+                ),
               ),
             ),
           ),
