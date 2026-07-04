@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/widgets/skeletons/skeleton_details.dart';
+import '../../../shared/widgets/states/error_state.dart';
 import '../providers/anime_details_provider.dart';
 import '../widgets/anime_banner.dart';
 import '../widgets/anime_poster.dart';
@@ -32,8 +33,13 @@ class AnimeDetailsScreen extends ConsumerWidget {
       body: anime.when(
         loading: () => const SkeletonDetails(),
 
-        error: (error, stackTrace) => Center(
-          child: Text(error.toString()),
+        error: (error, stackTrace) => ErrorState(
+          message: error.toString(),
+          onRetry: () {
+            ref.invalidate(
+              animeDetailsProvider(animeId),
+            );
+          },   
         ),
 
         data: (animeData) {

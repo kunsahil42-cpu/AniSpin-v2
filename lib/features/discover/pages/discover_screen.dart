@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/widgets/states/error_state.dart';
+import '../../../shared/widgets/states/loading_state.dart';
 import '../enums/discover_mode.dart';
 import '../pages/discover_results_screen.dart';
 import '../providers/discover_provider.dart';
@@ -31,15 +33,14 @@ class DiscoverScreen extends ConsumerWidget {
           ),
 
           anime.when(
-            loading: () => const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
-              ),
+            loading: () => const LoadingState(
+              message: "Loading Anime of the Day...",
             ),
-            error: (e, _) => Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(e.toString()),
+            error: (e, _) => ErrorState(
+              message: e.toString(),
+              onRetry: () {
+                ref.invalidate(animeOfTheDayProvider);
+              },
             ),
             data: (animeData) => AnimeOfDayCard(
               anime: animeData,
@@ -55,15 +56,14 @@ class DiscoverScreen extends ConsumerWidget {
           ),
 
           manga.when(
-            loading: () => const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
-              ),
+            loading: () => const LoadingState(
+              message: "Loading Manga of the Day...",
             ),
-            error: (e, _) => Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(e.toString()),
+            error: (e, _) => ErrorState(
+              message: e.toString(),
+              onRetry: () {
+                ref.invalidate(mangaOfTheDayProvider);
+              },
             ),
             data: (mangaData) => MangaOfDayCard(
               manga: mangaData,
@@ -92,8 +92,7 @@ class DiscoverScreen extends ConsumerWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      const DiscoverResultsScreen(
+                  builder: (_) => const DiscoverResultsScreen(
                     mode: DiscoverMode.surpriseMe,
                   ),
                 ),
@@ -109,8 +108,7 @@ class DiscoverScreen extends ConsumerWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      const DiscoverResultsScreen(
+                  builder: (_) => const DiscoverResultsScreen(
                     mode: DiscoverMode.trending,
                   ),
                 ),
@@ -126,8 +124,7 @@ class DiscoverScreen extends ConsumerWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      const DiscoverResultsScreen(
+                  builder: (_) => const DiscoverResultsScreen(
                     mode: DiscoverMode.hiddenGems,
                   ),
                 ),
@@ -143,8 +140,7 @@ class DiscoverScreen extends ConsumerWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      const DiscoverResultsScreen(
+                  builder: (_) => const DiscoverResultsScreen(
                     mode: DiscoverMode.airing,
                   ),
                 ),
@@ -160,8 +156,7 @@ class DiscoverScreen extends ConsumerWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      const DiscoverResultsScreen(
+                  builder: (_) => const DiscoverResultsScreen(
                     mode: DiscoverMode.topRated,
                   ),
                 ),

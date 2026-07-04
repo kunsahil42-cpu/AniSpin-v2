@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/widgets/states/empty_state.dart';
 import '../providers/search_provider.dart';
 import '../widgets/anime_tile.dart';
 import '../widgets/empty_widget.dart';
@@ -12,11 +13,14 @@ class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
   @override
-  ConsumerState<SearchScreen> createState() => _SearchScreenState();
+  ConsumerState<SearchScreen> createState() =>
+      _SearchScreenState();
 }
 
-class _SearchScreenState extends ConsumerState<SearchScreen> {
-  final TextEditingController _controller = TextEditingController();
+class _SearchScreenState
+    extends ConsumerState<SearchScreen> {
+  final TextEditingController _controller =
+      TextEditingController();
 
   String _query = '';
 
@@ -28,7 +32,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final searchResult = ref.watch(animeSearchProvider(_query));
+    final searchResult = ref.watch(
+      animeSearchProvider(_query),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -49,24 +55,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             child: _query.trim().isEmpty
                 ? const EmptyWidget()
                 : searchResult.when(
-                    loading: () => const LoadingWidget(),
+                    loading: () =>
+                        const LoadingWidget(),
                     error: (error, stackTrace) =>
-                        SearchErrorWidget(message: error.toString()),
+                        SearchErrorWidget(
+                      message: error.toString(),
+                    ),
                     data: (animeList) {
                       if (animeList.isEmpty) {
-                        return const Center(
-                          child: Text(
-                            "No anime found",
-                            style: TextStyle(fontSize: 18),
-                          ),
+                        return const EmptyState(
+                          title: "No Anime Found",
+                          subtitle:
+                              "Try searching with a different keyword.",
+                          icon:
+                              Icons.search_off_rounded,
                         );
                       }
 
                       return ListView.builder(
                         itemCount: animeList.length,
-                        itemBuilder: (context, index) {
+                        itemBuilder:
+                            (context, index) {
                           return AnimeTile(
-                            anime: animeList[index],
+                            anime:
+                                animeList[index],
                           );
                         },
                       );

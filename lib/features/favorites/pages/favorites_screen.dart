@@ -3,9 +3,10 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/favorites_provider.dart';
-import '../providers/manga_favorites_provider.dart';
 import '../widgets/favorite_card.dart';
 import '../widgets/manga_favorite_card.dart';
+import '../../../shared/widgets/states/error_state.dart';
+import '../../../shared/widgets/states/loading_state.dart';
 
 class FavoritesScreen extends ConsumerWidget {
   const FavoritesScreen({super.key});
@@ -42,18 +43,20 @@ class FavoritesScreen extends ConsumerWidget {
         body: TabBarView(
           children: [
             animeFavorites.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(),
+              loading: () => const LoadingState(
+                message: "Loading Favorite Anime...",
               ),
-              error: (error, _) => Center(
-                child: Text(error.toString()),
+              error: (error, _) => ErrorState(
+                message: error.toString(),
+                onRetry: () {
+                  ref.invalidate(favoritesProvider);
+                  },
               ),
               data: (animeList) {
                 if (animeList.isEmpty) {
                   return _buildEmptyState(
                     context,
-                    icon:
-                        Icons.favorite_border_rounded,
+                    icon: Icons.favorite_border_rounded,
                     title: "No Favorite Anime Yet",
                     subtitle:
                         "Tap ❤️ on any anime to save it here.",
@@ -251,14 +254,14 @@ class FavoritesScreen extends ConsumerWidget {
             // ===========================
 
             mangaFavorites.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(),
+              loading: () => const LoadingState(
+                message: "Loading Favorite Manga...",
               ),
-              error: (error, _) => Center(
-                child: Text(
-                  error.toString(),
-                  textAlign: TextAlign.center,
-                ),
+              error: (error, _) => ErrorState(
+                message: error.toString(),
+                onRetry: () {
+                  ref.invalidate(mangaFavoritesProvider);
+                },
               ),
               data: (mangaList) {
                 if (mangaList.isEmpty) {
@@ -349,7 +352,7 @@ class FavoritesScreen extends ConsumerWidget {
                                         .read(
                                           mangaFavoritesControllerProvider,
                                         )
-                                        .addFavorite(
+                                        .addMangaFavorite(
                                           manga,
                                         );
                                   },

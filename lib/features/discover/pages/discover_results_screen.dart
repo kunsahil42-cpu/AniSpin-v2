@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/widgets/states/empty_state.dart';
+import '../../../shared/widgets/states/error_state.dart';
+import '../../../shared/widgets/states/loading_state.dart';
 import '../enums/discover_mode.dart';
 import '../providers/discover_provider.dart';
 import '../widgets/anime_grid_tile.dart';
@@ -45,19 +48,26 @@ class DiscoverResultsScreen extends ConsumerWidget {
         centerTitle: true,
       ),
       body: animeList.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(),
+        loading: () => const LoadingState(
+          message: "Loading Anime...",
         ),
-        error: (error, _) => Center(
-          child: Text(error.toString()),
+
+        error: (error, _) => ErrorState(
+          message: error.toString(),
+          onRetry: () {
+            ref.invalidate(
+              discoverListProvider(mode),
+            );
+          },
         ),
+
         data: (anime) {
           if (anime.isEmpty) {
-            return const Center(
-              child: Text(
-                "No anime found.",
-                style: TextStyle(fontSize: 18),
-              ),
+            return const EmptyState(
+              title: "No Anime Found",
+              subtitle:
+                  "Try another Discover category.",
+              icon: Icons.movie_creation_outlined,
             );
           }
 
