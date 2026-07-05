@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,6 +29,21 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   // ---------------------------------------------------------------------------
   final Set<int> _pendingAnime = <int>{};
   final Set<int> _pendingManga = <int>{};
+
+  // We manage the 5-second countdown ourselves with a real dart:async Timer
+  // instead of relying on SnackBar.duration. The framework only arms its own
+  // auto-dismiss timer inside ScaffoldMessengerState.build() when the entrance
+  // animation has fully settled -- which is unreliable here because the screen
+  // is always mounted in an IndexedStack and rebuilds on every Isar emission.
+  // Owning the timer guarantees the bar is dismissed after exactly 5 seconds.
+  Timer? _undoTimer;
+  Completer<bool>? _activeUndo; // completes: true = UNDO tapped, false = commit
+
+  @override
+  void dispose() {
+    _undoTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -207,11 +224,11 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   /// Runs the optimistic swipe-to-delete + undo lifecycle for a single item.
   ///
   /// 1. Hide the item from the list (add its id to [pending]).
-  /// 2. Show the undo SnackBar and AWAIT its close reason.
-  /// 3. If the user tapped UNDO ([SnackBarClosedReason.action]) → un-hide it.
-  ///    The item was never deleted from Isar, so it simply reappears.
-  /// 4. For ANY other close reason (timeout, a newer swipe hiding this bar,
-  ///    manual dismiss…) → commit the permanent Isar delete.
+  /// 2. Show the undo SnackBar and start OUR OWN 5-second timer.
+  /// 3. If the user taps UNDO before the timer fires → un-hide it. The item was
+  ///    never deleted from Isar, so it simply reappears.
+  /// 4. When our timer fires (or a newer swipe supersedes this one) → hide the
+  ///    bar ourselves and commit the permanent Isar delete.
   ///
   /// [controller] is read from Riverpod BEFORE the first await, so the commit
   /// stays valid even if this widget is disposed while the bar is open.
@@ -223,66 +240,76 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   }) async {
     final messenger = ScaffoldMessenger.of(context);
 
-    // Step 1 + 2: hide, then show the bar. setState is synchronous here (it
-    // runs before the first await), so the ListView drops the dismissed item
-    // on the very next frame — no "dismissed Dismissible still in tree" error.
-    setState(() => pending.add(id));
-
-    final reason = await _showUndoBar(messenger);
-
-    // Step 4: commit the delete unless the close reason was UNDO.
-    if (reason != SnackBarClosedReason.action) {
-      await commit(controller);
+    // A newer swipe supersedes any bar still open: commit that older delete now
+    // and take its bar off screen, so only the most recent item is undoable.
+    _undoTimer?.cancel();
+    final previous = _activeUndo;
+    if (previous != null && !previous.isCompleted) {
+      previous.complete(false);
     }
-
-    // Step 3 (or cleanup after commit): drop the id from the pending set.
-    // On UNDO the item reappears; after a commit it's already gone from Isar.
-    pending.remove(id);
-    if (mounted) setState(() {});
-  }
-
-  /// Shows the "Removed from Favorites" bar and returns its close reason.
-  ///
-  /// Any bar already on screen is hidden first — its own [_runUndoableRemoval]
-  /// then sees a non-`action` reason and commits that earlier delete, so a
-  /// rapid series of swipes commits the older ones and keeps only the most
-  /// recent undoable (Gmail behaviour).
-  Future<SnackBarClosedReason> _showUndoBar(
-    ScaffoldMessengerState messenger,
-  ) {
     messenger.hideCurrentSnackBar();
 
-    return messenger
-        .showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+    // Step 1: hide immediately. setState is synchronous here (before the first
+    // await), so the ListView drops the dismissed item on the next frame — no
+    // "dismissed Dismissible still in tree" error.
+    setState(() => pending.add(id));
+
+    // Step 2: this completer is the single source of truth for the outcome.
+    final completer = Completer<bool>();
+    _activeUndo = completer;
+    _undoTimer = Timer(const Duration(seconds: 5), () {
+      if (!completer.isCompleted) completer.complete(false);
+    });
+
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        // Long fallback only. OUR _undoTimer above is what actually dismisses
+        // the bar at 5s, so we never depend on the framework's flaky timer.
+        duration: const Duration(minutes: 1),
+        content: const Row(
+          children: [
+            Icon(
+              Icons.check_circle_rounded,
+              color: Colors.white,
             ),
-            duration: const Duration(seconds: 5),
-            content: const Row(
-              children: [
-                Icon(
-                  Icons.check_circle_rounded,
-                  color: Colors.white,
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text("Removed from Favorites"),
-                ),
-              ],
+            SizedBox(width: 12),
+            Expanded(
+              child: Text("Removed from Favorites"),
             ),
-            action: SnackBarAction(
-              label: "UNDO",
-              // The tap itself closes the bar with SnackBarClosedReason.action;
-              // that reason is what _runUndoableRemoval keys off to restore the
-              // item, so no work is needed here.
-              onPressed: () {},
-            ),
-          ),
-        )
-        .closed;
+          ],
+        ),
+        action: SnackBarAction(
+          label: "UNDO",
+          onPressed: () {
+            if (!completer.isCompleted) completer.complete(true);
+          },
+        ),
+      ),
+    );
+
+    final undo = await completer.future;
+
+    // Only the still-active removal owns the timer and the visible bar.
+    if (identical(_activeUndo, completer)) {
+      _undoTimer?.cancel();
+      _undoTimer = null;
+      _activeUndo = null;
+      // Timeout path: pull the bar off screen ourselves. (On UNDO the
+      // SnackBarAction already dismissed it, so this is a harmless no-op.)
+      messenger.hideCurrentSnackBar();
+    }
+
+    // Step 3/4: commit the permanent delete unless the user chose UNDO.
+    if (!undo) {
+      await commit(controller);
+    }
+    pending.remove(id);
+    if (mounted) setState(() {});
   }
 
   Widget _deleteBackground() {
