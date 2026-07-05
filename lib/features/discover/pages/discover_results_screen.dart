@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/widgets/async_network_view.dart';
 import '../../../shared/widgets/states/empty_state.dart';
-import '../../../shared/widgets/states/error_state.dart';
 import '../../../shared/widgets/states/loading_state.dart';
 import '../enums/discover_mode.dart';
 import '../providers/discover_provider.dart';
@@ -47,20 +47,12 @@ class DiscoverResultsScreen extends ConsumerWidget {
         title: Text(pageTitle),
         centerTitle: true,
       ),
-      body: animeList.when(
+      body: AsyncNetworkView(
+        value: animeList,
         loading: () => const LoadingState(
           message: "Loading Anime...",
         ),
-
-        error: (error, _) => ErrorState(
-          message: error.toString(),
-          onRetry: () {
-            ref.invalidate(
-              discoverListProvider(mode),
-            );
-          },
-        ),
-
+        onRetry: () => ref.invalidate(discoverListProvider(mode)),
         data: (anime) {
           if (anime.isEmpty) {
             return const EmptyState(

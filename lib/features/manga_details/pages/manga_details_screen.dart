@@ -3,8 +3,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/widgets/async_network_view.dart';
 import '../../../shared/widgets/skeletons/skeleton_details.dart';
-import '../../../shared/widgets/states/error_state.dart';
 
 import '../../anime_details/widgets/anime_banner.dart';
 import '../../anime_details/widgets/anime_poster.dart';
@@ -33,18 +33,10 @@ class MangaDetailsScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor:
           Theme.of(context).scaffoldBackgroundColor,
-      body: manga.when(
+      body: AsyncNetworkView(
+        value: manga,
         loading: () => const SkeletonDetails(),
-
-        error: (error, stackTrace) => ErrorState(
-          message: error.toString(),
-          onRetry: () {
-            ref.invalidate(
-              mangaDetailsProvider(mangaId),
-            );
-          },
-        ),
-
+        onRetry: () => ref.invalidate(mangaDetailsProvider(mangaId)),
         data: (mangaData) {
           return CustomScrollView(
             slivers: [

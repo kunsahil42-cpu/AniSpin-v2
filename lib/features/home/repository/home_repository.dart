@@ -1,3 +1,4 @@
+import '../../../core/error/app_failure.dart';
 import '../data/home_api.dart';
 import '../enums/home_section.dart';
 import '../models/home_anime_model.dart';
@@ -32,51 +33,53 @@ class HomeRepository {
       }
     }
 
-    late final dynamic result;
+    try {
+      late final dynamic result;
 
-    switch (section) {
-      case HomeSection.trending:
-        result = await _api.getTrendingAnime();
-        break;
+      switch (section) {
+        case HomeSection.trending:
+          result = await _api.getTrendingAnime();
+          break;
 
-      case HomeSection.thisSeason:
-        result = await _api.getThisSeasonAnime();
-        break;
+        case HomeSection.thisSeason:
+          result = await _api.getThisSeasonAnime();
+          break;
 
-      case HomeSection.justReleased:
-        result = await _api.getJustReleasedAnime();
-        break;
+        case HomeSection.justReleased:
+          result = await _api.getJustReleasedAnime();
+          break;
 
-      case HomeSection.popularThisWeek:
-        result = await _api.getPopularThisWeek();
-        break;
+        case HomeSection.popularThisWeek:
+          result = await _api.getPopularThisWeek();
+          break;
 
-      case HomeSection.continueWatching:
-        // Temporary until implemented
-        result = await _api.getTrendingAnime();
-        break;
+        case HomeSection.continueWatching:
+          // Temporary until implemented
+          result = await _api.getTrendingAnime();
+          break;
+      }
+
+      if (result.hasException) {
+        throw AppFailure.fromOperation(result.exception);
+      }
+
+      final List media =
+          result.data!['Page']['media'];
+
+      final anime = media
+          .map<HomeAnimeModel>(
+            (item) => HomeAnimeModel.fromJson(item),
+          )
+          .toList();
+
+      // Save in memory cache
+      _cache[section] = anime;
+      _cacheTime[section] = DateTime.now();
+
+      return anime;
+    } catch (e) {
+      throw AppFailure.from(e);
     }
-
-    if (result.hasException) {
-      throw Exception(
-        result.exception.toString(),
-      );
-    }
-
-    final List media =
-        result.data!['Page']['media'];
-
-    final anime = media
-        .map<HomeAnimeModel>(
-          (item) => HomeAnimeModel.fromJson(item),
-        )
-        .toList();
-
-    // Save in memory cache
-    _cache[section] = anime;
-    _cacheTime[section] = DateTime.now();
-
-    return anime;
   }
 
   /// Clear one section

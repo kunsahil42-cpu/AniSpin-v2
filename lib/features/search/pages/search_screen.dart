@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/widgets/async_network_view.dart';
 import '../../../shared/widgets/states/empty_state.dart';
 import '../providers/search_provider.dart';
 import '../widgets/anime_tile.dart';
 import '../widgets/empty_widget.dart';
-import '../widgets/error_widget.dart';
 import '../widgets/loading_widget.dart';
 import '../widgets/search_field.dart';
 
@@ -54,12 +54,11 @@ class _SearchScreenState
           Expanded(
             child: _query.trim().isEmpty
                 ? const EmptyWidget()
-                : searchResult.when(
-                    loading: () =>
-                        const LoadingWidget(),
-                    error: (error, stackTrace) =>
-                        SearchErrorWidget(
-                      message: error.toString(),
+                : AsyncNetworkView(
+                    value: searchResult,
+                    loading: () => const LoadingWidget(),
+                    onRetry: () => ref.invalidate(
+                      animeSearchProvider(_query),
                     ),
                     data: (animeList) {
                       if (animeList.isEmpty) {

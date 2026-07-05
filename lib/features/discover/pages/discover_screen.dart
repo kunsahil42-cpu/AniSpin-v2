@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../shared/widgets/states/error_state.dart';
+import '../../../shared/widgets/async_network_view.dart';
 import '../../../shared/widgets/states/loading_state.dart';
 import '../enums/discover_mode.dart';
 import '../pages/discover_results_screen.dart';
@@ -32,16 +32,13 @@ class DiscoverScreen extends ConsumerWidget {
             icon: Icons.wb_sunny,
           ),
 
-          anime.when(
+          AsyncNetworkView(
+            value: anime,
+            compact: true,
             loading: () => const LoadingState(
               message: "Loading Anime of the Day...",
             ),
-            error: (e, _) => ErrorState(
-              message: e.toString(),
-              onRetry: () {
-                ref.invalidate(animeOfTheDayProvider);
-              },
-            ),
+            onRetry: () => ref.invalidate(animeOfTheDayProvider),
             data: (animeData) => AnimeOfDayCard(
               anime: animeData,
               onTap: () {
@@ -55,16 +52,13 @@ class DiscoverScreen extends ConsumerWidget {
             icon: Icons.menu_book,
           ),
 
-          manga.when(
+          AsyncNetworkView(
+            value: manga,
+            compact: true,
             loading: () => const LoadingState(
               message: "Loading Manga of the Day...",
             ),
-            error: (e, _) => ErrorState(
-              message: e.toString(),
-              onRetry: () {
-                ref.invalidate(mangaOfTheDayProvider);
-              },
-            ),
+            onRetry: () => ref.invalidate(mangaOfTheDayProvider),
             data: (mangaData) => MangaOfDayCard(
               manga: mangaData,
               onTap: () {

@@ -36,6 +36,10 @@ dependencies:
   # GraphQL (AniList API)
   graphql_flutter: ^5.2.0
 
+  # Connectivity + reachability probe (global network error handling)
+  connectivity_plus: ^6.1.0
+  http: ^1.2.2
+
   # Network Images
   cached_network_image: ^3.4.1
 

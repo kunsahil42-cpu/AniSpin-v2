@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/favorites_provider.dart';
 import '../widgets/favorite_card.dart';
 import '../widgets/manga_favorite_card.dart';
-import '../../../shared/widgets/states/error_state.dart';
+import '../../../shared/widgets/async_network_view.dart';
 import '../../../shared/widgets/states/loading_state.dart';
 
 class FavoritesScreen extends ConsumerStatefulWidget {
@@ -74,16 +74,12 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             // ===========================
             // Anime Tab
             // ===========================
-            animeFavorites.when(
+            AsyncNetworkView(
+              value: animeFavorites,
               loading: () => const LoadingState(
                 message: "Loading Favorite Anime...",
               ),
-              error: (error, _) => ErrorState(
-                message: error.toString(),
-                onRetry: () {
-                  ref.invalidate(favoritesProvider);
-                },
-              ),
+              onRetry: () => ref.invalidate(favoritesProvider),
               data: (list) {
                 // Hide anything currently in its undo window.
                 final animeList = list
@@ -144,16 +140,12 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             // ===========================
             // Manga Tab
             // ===========================
-            mangaFavorites.when(
+            AsyncNetworkView(
+              value: mangaFavorites,
               loading: () => const LoadingState(
                 message: "Loading Favorite Manga...",
               ),
-              error: (error, _) => ErrorState(
-                message: error.toString(),
-                onRetry: () {
-                  ref.invalidate(mangaFavoritesProvider);
-                },
-              ),
+              onRetry: () => ref.invalidate(mangaFavoritesProvider),
               data: (list) {
                 final mangaList = list
                     .where((m) => !_pendingManga.contains(m.mangaId))

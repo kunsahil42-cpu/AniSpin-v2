@@ -2,9 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/widgets/async_network_view.dart';
 import '../../../shared/widgets/skeletons/skeleton_card.dart';
 import '../../../shared/widgets/states/empty_state.dart';
-import '../../../shared/widgets/states/error_state.dart';
 import '../enums/home_section.dart';
 import '../providers/home_provider.dart';
 import 'anime_card.dart';
@@ -25,7 +25,9 @@ class HorizontalList extends ConsumerWidget {
 
     return SizedBox(
       height: 320,
-      child: animeList.when(
+      child: AsyncNetworkView(
+        value: animeList,
+        compact: true,
         loading: () {
           return ListView.separated(
             scrollDirection: Axis.horizontal,
@@ -39,18 +41,7 @@ class HorizontalList extends ConsumerWidget {
                 const SkeletonCard(),
           );
         },
-
-        error: (error, stackTrace) {
-          return ErrorState(
-            message: error.toString(),
-            onRetry: () {
-              ref.invalidate(
-                homeSectionProvider(section),
-              );
-            },
-          );
-        },
-
+        onRetry: () => ref.invalidate(homeSectionProvider(section)),
         data: (anime) {
           if (anime.isEmpty) {
             return const EmptyState(
