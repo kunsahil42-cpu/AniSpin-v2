@@ -14,6 +14,7 @@ import '../widgets/favorite_button.dart';
 import '../widgets/genre_chip.dart';
 import '../widgets/score_badge.dart';
 import '../widgets/status_chip.dart';
+import '../../tracker/widgets/anime_tracking_section.dart';
 
 class AnimeDetailsScreen extends ConsumerWidget {
   final int animeId;
@@ -222,6 +223,18 @@ class AnimeDetailsScreen extends ConsumerWidget {
                             ],
                           ),
   
+                          const SizedBox(height: 26),
+
+                          AnimeTrackingSection(
+                            animeId: animeData.id,
+                            malId: animeData.idMal,
+                            title: animeData.romajiTitle,
+                            englishTitle: animeData.englishTitle,
+                            coverImage: animeData.coverImage,
+                            bannerImage: animeData.bannerImage,
+                            totalEpisodes: animeData.episodes,
+                          ),
+
                           const SizedBox(height: 26),
   
                           DescriptionSection(description: animeData.description),

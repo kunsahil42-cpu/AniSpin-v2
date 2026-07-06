@@ -32,4 +32,12 @@ class WatchProgress {
 
   // Completed episodes list
   List<int> completedEpisodes = [];
+
+  // Tracking fields
+  String? status; // Watching, Completed, Plan To Watch, On Hold, Dropped
+  int? score; // 0-10
+  DateTime? dateStarted;
+  DateTime? dateFinished;
+  int rewatchCount = 0;
+  String? notes;
 }

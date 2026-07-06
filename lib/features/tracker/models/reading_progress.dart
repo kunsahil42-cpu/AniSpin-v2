@@ -24,4 +24,14 @@ class ReadingProgress {
 
   // Completed chapters list
   List<int> completedChapters = [];
+
+  // Tracking fields
+  String? status; // Reading, Completed, Plan To Read, On Hold, Dropped
+  int? score; // 0-10
+  DateTime? dateStarted;
+  DateTime? dateFinished;
+  int rereadCount = 0;
+  String? notes;
+  int lastReadVolume = 0;
+  int? totalVolumes;
 }

@@ -16,6 +16,7 @@ import '../../tracker/providers/tracker_providers.dart';
 import '../providers/manga_details_provider.dart';
 import '../widgets/chapter_list.dart';
 import '../widgets/manga_favorite_button.dart';
+import '../../tracker/widgets/manga_tracking_section.dart';
 
 class MangaDetailsScreen extends ConsumerWidget {
   final int mangaId;
@@ -223,6 +224,18 @@ class MangaDetailsScreen extends ConsumerWidget {
                             ],
                           ),
   
+                          const SizedBox(height: 26),
+
+                          MangaTrackingSection(
+                            mangaId: mangaData.id,
+                            title: mangaData.romajiTitle,
+                            englishTitle: mangaData.englishTitle,
+                            coverImage: mangaData.coverImage,
+                            bannerImage: mangaData.bannerImage,
+                            totalChapters: mangaData.chapters,
+                            totalVolumes: mangaData.volumes,
+                          ),
+
                           const SizedBox(height: 26),
   
                           DescriptionSection(description: mangaData.description),
