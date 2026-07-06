@@ -40,4 +40,6 @@ class WatchProgress {
   DateTime? dateFinished;
   int rewatchCount = 0;
   String? notes;
+  List<String> genres = [];
+  String? studio;
 }

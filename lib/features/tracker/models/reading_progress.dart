@@ -34,4 +34,6 @@ class ReadingProgress {
   String? notes;
   int lastReadVolume = 0;
   int? totalVolumes;
+  List<String> genres = [];
+  String? author;
 }

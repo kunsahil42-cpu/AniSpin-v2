@@ -254,35 +254,46 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   void _saveWatchProgress(int position, int duration, double percentage) {
     final repo = ref.read(watchProgressRepositoryProvider);
     
-    final progress = WatchProgress()
-      ..animeId = widget.animeId
-      ..malId = widget.malId
-      ..romajiTitle = widget.romajiTitle
-      ..englishTitle = widget.englishTitle
-      ..coverImage = widget.coverImage
-      ..bannerImage = widget.bannerImage
-      ..totalEpisodes = widget.totalEpisodes
-      ..lastWatchedEpisode = widget.episodeNumber
-      ..lastWatchedPosition = position
-      ..lastWatchedDuration = duration
-      ..watchPercentage = percentage
-      ..lastWatchedSource = _isDub ? 'Anikoto (Dub)' : 'Anikoto (Sub)'
-      ..lastWatchedAudio = _isDub ? 'Dub' : 'Sub'
-      ..lastWatchedAt = DateTime.now();
+    repo.getProgress(widget.animeId).then((existing) {
+      final progress = existing ?? WatchProgress()
+        ..animeId = widget.animeId
+        ..malId = widget.malId
+        ..romajiTitle = widget.romajiTitle
+        ..englishTitle = widget.englishTitle
+        ..coverImage = widget.coverImage
+        ..bannerImage = widget.bannerImage
+        ..totalEpisodes = widget.totalEpisodes;
+        
+      progress
+        ..lastWatchedEpisode = widget.episodeNumber
+        ..lastWatchedPosition = position
+        ..lastWatchedDuration = duration
+        ..watchPercentage = percentage
+        ..lastWatchedSource = _isDub ? 'Anikoto (Dub)' : 'Anikoto (Sub)'
+        ..lastWatchedAudio = _isDub ? 'Dub' : 'Sub'
+        ..lastWatchedAt = DateTime.now();
 
-    // Mark as completed if watched more than 90%
-    if (percentage > 0.90) {
-      final completed = List<int>.from(progress.completedEpisodes);
-      if (!completed.contains(widget.episodeNumber)) {
-        completed.add(widget.episodeNumber);
-        progress.completedEpisodes = completed;
+      if (progress.status == null) {
+        progress.status = 'Watching';
       }
-    }
 
-    repo.saveProgress(progress).then((_) {
-      // Invalidate provider to update UI
-      ref.invalidate(animeProgressProvider(widget.animeId));
-      ref.invalidate(continueWatchingProvider);
+      // Mark as completed if watched more than 90%
+      if (percentage > 0.90) {
+        final completed = List<int>.from(progress.completedEpisodes);
+        if (!completed.contains(widget.episodeNumber)) {
+          completed.add(widget.episodeNumber);
+          progress.completedEpisodes = completed;
+        }
+        if (widget.totalEpisodes > 0 && progress.completedEpisodes.length >= widget.totalEpisodes) {
+          progress.status = 'Completed';
+        }
+      }
+
+      repo.saveProgress(progress).then((_) {
+        // Invalidate provider to update UI
+        ref.invalidate(animeProgressProvider(widget.animeId));
+        ref.invalidate(continueWatchingProvider);
+      });
     });
   }
 

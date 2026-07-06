@@ -78,30 +78,41 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
     final repo = ref.read(readingProgressRepositoryProvider);
     final percentage = _currentPage / totalPages;
 
-    final progress = ReadingProgress()
-      ..mangaId = widget.mangaId
-      ..romajiTitle = widget.romajiTitle
-      ..englishTitle = widget.englishTitle
-      ..coverImage = widget.coverImage
-      ..bannerImage = widget.bannerImage
-      ..totalChapters = widget.totalChapters
-      ..lastReadChapter = widget.chapterNumber
-      ..lastReadPage = _currentPage
-      ..readingPercentage = percentage
-      ..lastReadAt = DateTime.now();
+    repo.getProgress(widget.mangaId).then((existing) {
+      final progress = existing ?? ReadingProgress()
+        ..mangaId = widget.mangaId
+        ..romajiTitle = widget.romajiTitle
+        ..englishTitle = widget.englishTitle
+        ..coverImage = widget.coverImage
+        ..bannerImage = widget.bannerImage
+        ..totalChapters = widget.totalChapters;
+        
+      progress
+        ..lastReadChapter = widget.chapterNumber
+        ..lastReadPage = _currentPage
+        ..readingPercentage = percentage
+        ..lastReadAt = DateTime.now();
 
-    // Mark as completed if read last page
-    if (_currentPage == totalPages) {
-      final completed = List<int>.from(progress.completedChapters);
-      if (!completed.contains(widget.chapterNumber)) {
-        completed.add(widget.chapterNumber);
-        progress.completedChapters = completed;
+      if (progress.status == null) {
+        progress.status = 'Reading';
       }
-    }
 
-    repo.saveProgress(progress).then((_) {
-      ref.invalidate(mangaProgressProvider(widget.mangaId));
-      ref.invalidate(continueReadingProvider);
+      // Mark as completed if read last page
+      if (_currentPage == totalPages) {
+        final completed = List<int>.from(progress.completedChapters);
+        if (!completed.contains(widget.chapterNumber)) {
+          completed.add(widget.chapterNumber);
+          progress.completedChapters = completed;
+        }
+        if (widget.totalChapters > 0 && progress.completedChapters.length >= widget.totalChapters) {
+          progress.status = 'Completed';
+        }
+      }
+
+      repo.saveProgress(progress).then((_) {
+        ref.invalidate(mangaProgressProvider(widget.mangaId));
+        ref.invalidate(continueReadingProvider);
+      });
     });
   }
 

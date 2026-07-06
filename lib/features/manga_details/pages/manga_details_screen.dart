@@ -234,6 +234,8 @@ class MangaDetailsScreen extends ConsumerWidget {
                             bannerImage: mangaData.bannerImage,
                             totalChapters: mangaData.chapters,
                             totalVolumes: mangaData.volumes,
+                            genres: mangaData.genres,
+                            author: mangaData.author,
                           ),
 
                           const SizedBox(height: 26),

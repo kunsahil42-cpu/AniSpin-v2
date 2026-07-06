@@ -13,6 +13,8 @@ class MangaTrackingSection extends ConsumerStatefulWidget {
   final String bannerImage;
   final int? totalChapters;
   final int? totalVolumes;
+  final List<String>? genres;
+  final String? author;
 
   const MangaTrackingSection({
     super.key,
@@ -23,6 +25,8 @@ class MangaTrackingSection extends ConsumerStatefulWidget {
     required this.bannerImage,
     this.totalChapters,
     this.totalVolumes,
+    this.genres,
+    this.author,
   });
 
   @override
@@ -60,7 +64,9 @@ class _MangaTrackingSectionState extends ConsumerState<MangaTrackingSection> {
       ..dateFinished = _dateFinished
       ..rereadCount = _rereadCount.clamp(0, 999)
       ..notes = _notesController.text
-      ..lastReadAt = DateTime.now();
+      ..lastReadAt = DateTime.now()
+      ..genres = widget.genres ?? []
+      ..author = widget.author;
 
     if (widget.totalChapters != null && widget.totalChapters! > 0) {
       progress.readingPercentage = progress.lastReadChapter / widget.totalChapters!;
@@ -99,7 +105,9 @@ class _MangaTrackingSectionState extends ConsumerState<MangaTrackingSection> {
       ..readingPercentage = 0.0
       ..lastReadAt = DateTime.now()
       ..status = 'Reading'
-      ..lastReadVolume = 0;
+      ..lastReadVolume = 0
+      ..genres = widget.genres ?? []
+      ..author = widget.author;
 
     await repo.saveProgress(progress);
     ref.invalidate(mangaProgressProvider(widget.mangaId));

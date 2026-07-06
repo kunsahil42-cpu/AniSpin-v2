@@ -233,6 +233,8 @@ class AnimeDetailsScreen extends ConsumerWidget {
                             coverImage: animeData.coverImage,
                             bannerImage: animeData.bannerImage,
                             totalEpisodes: animeData.episodes,
+                            genres: animeData.genres,
+                            studio: animeData.studio,
                           ),
 
                           const SizedBox(height: 26),

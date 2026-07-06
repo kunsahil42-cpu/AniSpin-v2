@@ -13,6 +13,8 @@ class AnimeTrackingSection extends ConsumerStatefulWidget {
   final String coverImage;
   final String bannerImage;
   final int? totalEpisodes;
+  final List<String>? genres;
+  final String? studio;
 
   const AnimeTrackingSection({
     super.key,
@@ -23,6 +25,8 @@ class AnimeTrackingSection extends ConsumerStatefulWidget {
     required this.coverImage,
     required this.bannerImage,
     this.totalEpisodes,
+    this.genres,
+    this.studio,
   });
 
   @override
@@ -58,7 +62,9 @@ class _AnimeTrackingSectionState extends ConsumerState<AnimeTrackingSection> {
       ..dateFinished = _dateFinished
       ..rewatchCount = _rewatchCount.clamp(0, 999)
       ..notes = _notesController.text
-      ..lastWatchedAt = DateTime.now();
+      ..lastWatchedAt = DateTime.now()
+      ..genres = widget.genres ?? []
+      ..studio = widget.studio;
 
     if (widget.totalEpisodes != null && widget.totalEpisodes! > 0) {
       progress.watchPercentage = progress.lastWatchedEpisode / widget.totalEpisodes!;
@@ -99,7 +105,9 @@ class _AnimeTrackingSectionState extends ConsumerState<AnimeTrackingSection> {
       ..lastWatchedSource = 'Tracking Section'
       ..lastWatchedAudio = 'Sub'
       ..status = 'Watching'
-      ..lastWatchedAt = DateTime.now();
+      ..lastWatchedAt = DateTime.now()
+      ..genres = widget.genres ?? []
+      ..studio = widget.studio;
 
     await repo.saveProgress(progress);
     ref.invalidate(animeProgressProvider(widget.animeId));
