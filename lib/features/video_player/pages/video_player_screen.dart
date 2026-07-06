@@ -68,6 +68,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   int _subtitleEpoch = 0;
   bool _firstResolve = true;
   double _playbackSpeed = 1.0;
+  BoxFit _videoFit = BoxFit.contain;
 
   Timer? _controlsTimer;
 
@@ -84,7 +85,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   void initState() {
     super.initState();
     _isDub = widget.initialDub ?? false;
-    _resolveStream();
+    Future.microtask(() => _resolveStream());
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
@@ -407,12 +408,10 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
             // Video display
             Center(
               child: _initialized && _controller != null
-                  // Fill the entire screen (no letterbox bars). The video is laid
-                  // out at its native size inside a FittedBox with BoxFit.cover so
-                  // it scales to cover the full screen, cropping any overflow.
+                  // Render with dynamic aspect ratio fit (Fit, Zoom, Stretch).
                   ? SizedBox.expand(
                       child: FittedBox(
-                        fit: BoxFit.cover,
+                        fit: _videoFit,
                         clipBehavior: Clip.hardEdge,
                         child: SizedBox(
                           width: _controller!.value.size.width,
@@ -705,6 +704,12 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                                 label: Text('${_playbackSpeed}x', style: const TextStyle(color: Colors.white)),
                                 onPressed: () => _showSpeedSelector(),
                               ),
+                              const SizedBox(width: 8),
+                              TextButton.icon(
+                                icon: const Icon(Icons.aspect_ratio, color: Colors.white, size: 16),
+                                label: Text(_getFitLabel(), style: const TextStyle(color: Colors.white)),
+                                onPressed: _toggleVideoFit,
+                              ),
                             ],
                           ),
                           Row(
@@ -876,6 +881,32 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
         }).toList(),
       ),
     );
+  }
+
+  String _getFitLabel() {
+    switch (_videoFit) {
+      case BoxFit.contain:
+        return 'Fit';
+      case BoxFit.cover:
+        return 'Zoom';
+      case BoxFit.fill:
+        return 'Stretch';
+      default:
+        return 'Fit';
+    }
+  }
+
+  void _toggleVideoFit() {
+    setState(() {
+      if (_videoFit == BoxFit.contain) {
+        _videoFit = BoxFit.cover;
+      } else if (_videoFit == BoxFit.cover) {
+        _videoFit = BoxFit.fill;
+      } else {
+        _videoFit = BoxFit.contain;
+      }
+    });
+    _startControlsTimer();
   }
 
   void _showAudioSelector() {
