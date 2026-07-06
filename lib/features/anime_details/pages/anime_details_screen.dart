@@ -34,218 +34,224 @@ class AnimeDetailsScreen extends ConsumerWidget {
           final theme = Theme.of(context);
           final isTablet = MediaQuery.of(context).size.width >= 600;
 
-          return CustomScrollView(
-            slivers: [
-              // ── Banner ──────────────────────────────────────────────────
-              SliverAppBar(
-                expandedHeight: 240,
-                pinned: true,
-                elevation: 0,
-                backgroundColor: Colors.transparent,
-                leading: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: ClipOval(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                      child: Material(
-                        color: Colors.black26,
-                        child: InkWell(
-                          onTap: () => Navigator.of(context).pop(),
-                          child: const Center(
-                            child: Icon(
-                              Icons.arrow_back_ios_new_rounded,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                actions: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 10, top: 8, bottom: 8),
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(animeDetailsProvider(animeId));
+            },
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                // ── Banner ──────────────────────────────────────────────────
+                SliverAppBar(
+                  expandedHeight: 240,
+                  pinned: true,
+                  elevation: 0,
+                  backgroundColor: Colors.transparent,
+                  leading: Padding(
+                    padding: const EdgeInsets.all(8),
                     child: ClipOval(
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                         child: Material(
                           color: Colors.black26,
                           child: InkWell(
-                            onTap: () {},
-                            child: const Padding(
-                              padding: EdgeInsets.all(10),
-                              child: Icon(Icons.share_rounded, color: Colors.white, size: 22),
+                            onTap: () => Navigator.of(context).pop(),
+                            child: const Center(
+                              child: Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ],
-                flexibleSpace: FlexibleSpaceBar(
-                  background: AnimeBanner(imageUrl: animeData.bannerImage),
+                  actions: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 10, top: 8, bottom: 8),
+                      child: ClipOval(
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                          child: Material(
+                            color: Colors.black26,
+                            child: InkWell(
+                              onTap: () {},
+                              child: const Padding(
+                                padding: EdgeInsets.all(10),
+                                child: Icon(Icons.share_rounded, color: Colors.white, size: 22),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: AnimeBanner(imageUrl: animeData.bannerImage),
+                  ),
                 ),
-              ),
-
-              // ── Content ─────────────────────────────────────────────────
-              SliverToBoxAdapter(
-                child: Transform.translate(
-                  offset: const Offset(0, -80),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-
-                        // Poster
-                        Hero(
-                          tag: 'anime_$animeId',
-                          flightShuttleBuilder: (_, __, ___, ____, toCtx) =>
-                              toCtx.widget,
-                          child: AnimePoster(imageUrl: animeData.coverImage),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Romaji title
-                        Text(
-                          animeData.romajiTitle,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5,
+  
+                // ── Content ─────────────────────────────────────────────────
+                SliverToBoxAdapter(
+                  child: Transform.translate(
+                    offset: const Offset(0, -80),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+  
+                          // Poster
+                          Hero(
+                            tag: 'anime_$animeId',
+                            flightShuttleBuilder: (_, __, ___, ____, toCtx) =>
+                                toCtx.widget,
+                            child: AnimePoster(imageUrl: animeData.coverImage),
                           ),
-                        ),
-
-                        // English title
-                        if (animeData.englishTitle != null &&
-                            animeData.englishTitle!.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(
-                              animeData.englishTitle!,
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: theme.colorScheme.onSurface
-                                    .withValues(alpha: 0.65),
-                                fontSize: 15,
-                              ),
+  
+                          const SizedBox(height: 16),
+  
+                          // Romaji title
+                          Text(
+                            animeData.romajiTitle,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
                             ),
                           ),
-
-                        const SizedBox(height: 18),
-
-                        // Score / Status / Favorite row
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Expanded(child: ScoreBadge(score: animeData.averageScore)),
-                            const SizedBox(width: 8),
-                            Expanded(child: StatusChip(status: animeData.status)),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: FavoriteButton(
-                                animeId: animeData.id,
-                                romajiTitle: animeData.romajiTitle,
-                                englishTitle: animeData.englishTitle,
-                                coverImage: animeData.coverImage,
-                                bannerImage: animeData.bannerImage,
-                                status: animeData.status,
-                                studio: animeData.studio,
-                                averageScore: animeData.averageScore,
-                                episodes: animeData.episodes,
-                                season: animeData.season,
-                                seasonYear: animeData.seasonYear,
+  
+                          // English title
+                          if (animeData.englishTitle != null &&
+                              animeData.englishTitle!.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                animeData.englishTitle!,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: theme.colorScheme.onSurface
+                                      .withValues(alpha: 0.65),
+                                  fontSize: 15,
+                                ),
                               ),
                             ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        // Genres
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: animeData.genres
-                              .map((g) => GenreChip(genre: g))
-                              .toList(),
-                        ),
-
-                        const SizedBox(height: 24),
-
-                        // Metadata grid
-                        GridView.count(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          crossAxisCount: isTablet ? 4 : 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: isTablet ? 3.0 : 2.8,
-                          children: [
-                            _MetadataCard(
-                              icon: Icons.tv_rounded,
-                              title: 'Episodes',
-                              value: "${animeData.episodes ?? '?'} Ep",
-                            ),
-                            _MetadataCard(
-                              icon: Icons.business_rounded,
-                              title: 'Studio',
-                              value: animeData.studio.isEmpty
-                                  ? 'Unknown'
-                                  : animeData.studio,
-                            ),
-                            _MetadataCard(
-                              icon: Icons.schedule_rounded,
-                              title: 'Duration',
-                              value: animeData.duration == null
-                                  ? '-'
-                                  : '${animeData.duration} min',
-                            ),
-                            _MetadataCard(
-                              icon: Icons.calendar_today_rounded,
-                              title: 'Season',
-                              value:
-                                  "${animeData.season ?? '-'} ${animeData.seasonYear ?? ''}",
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 26),
-
-                        DescriptionSection(description: animeData.description),
-
-                        const SizedBox(height: 24),
-
-                        EpisodeList(
-                          animeId: animeData.id,
-                          malId: animeData.idMal,
-                          totalEpisodes: animeData.episodes ?? 12,
-                          status: animeData.status,
-                          romajiTitle: animeData.romajiTitle,
-                          englishTitle: animeData.englishTitle,
-                          coverImage: animeData.coverImage,
-                          bannerImage: animeData.bannerImage,
-                          streamingEpisodes: animeData.streamingEpisodes,
-                          nextAiringEpisode: animeData.nextAiringEpisode,
-                        ),
-
-                        const SizedBox(height: 40),
-
-                      ], // Column children
-                    ), // Column
-                  ), // Padding
-                ), // Transform.translate
-              ), // SliverToBoxAdapter
-
-            ], // slivers
-          ); // CustomScrollView
+  
+                          const SizedBox(height: 18),
+  
+                          // Score / Status / Favorite row
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Expanded(child: ScoreBadge(score: animeData.averageScore)),
+                              const SizedBox(width: 8),
+                              Expanded(child: StatusChip(status: animeData.status)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: FavoriteButton(
+                                  animeId: animeData.id,
+                                  romajiTitle: animeData.romajiTitle,
+                                  englishTitle: animeData.englishTitle,
+                                  coverImage: animeData.coverImage,
+                                  bannerImage: animeData.bannerImage,
+                                  status: animeData.status,
+                                  studio: animeData.studio,
+                                  averageScore: animeData.averageScore,
+                                  episodes: animeData.episodes,
+                                  season: animeData.season,
+                                  seasonYear: animeData.seasonYear,
+                                ),
+                              ),
+                            ],
+                          ),
+  
+                          const SizedBox(height: 20),
+  
+                          // Genres
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: animeData.genres
+                                .map((g) => GenreChip(genre: g))
+                                .toList(),
+                          ),
+  
+                          const SizedBox(height: 24),
+  
+                          // Metadata grid
+                          GridView.count(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            crossAxisCount: isTablet ? 4 : 2,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: isTablet ? 3.0 : 2.8,
+                            children: [
+                              _MetadataCard(
+                                icon: Icons.tv_rounded,
+                                title: 'Episodes',
+                                value: "${animeData.episodes ?? '?'} Ep",
+                              ),
+                              _MetadataCard(
+                                icon: Icons.business_rounded,
+                                title: 'Studio',
+                                value: animeData.studio.isEmpty
+                                    ? 'Unknown'
+                                    : animeData.studio,
+                              ),
+                              _MetadataCard(
+                                icon: Icons.schedule_rounded,
+                                title: 'Duration',
+                                value: animeData.duration == null
+                                    ? '-'
+                                    : '${animeData.duration} min',
+                              ),
+                              _MetadataCard(
+                                icon: Icons.calendar_today_rounded,
+                                title: 'Season',
+                                value:
+                                    "${animeData.season ?? '-'} ${animeData.seasonYear ?? ''}",
+                              ),
+                            ],
+                          ),
+  
+                          const SizedBox(height: 26),
+  
+                          DescriptionSection(description: animeData.description),
+  
+                          const SizedBox(height: 24),
+  
+                          EpisodeList(
+                            animeId: animeData.id,
+                            malId: animeData.idMal,
+                            totalEpisodes: animeData.episodes ?? 12,
+                            status: animeData.status,
+                            romajiTitle: animeData.romajiTitle,
+                            englishTitle: animeData.englishTitle,
+                            coverImage: animeData.coverImage,
+                            bannerImage: animeData.bannerImage,
+                            streamingEpisodes: animeData.streamingEpisodes,
+                            nextAiringEpisode: animeData.nextAiringEpisode,
+                          ),
+  
+                          const SizedBox(height: 40),
+  
+                        ], // Column children
+                      ), // Column
+                    ), // Padding
+                  ), // Transform.translate
+                ), // SliverToBoxAdapter
+  
+              ], // slivers
+            ), // CustomScrollView
+          ); // RefreshIndicator
         },
       ),
     );
