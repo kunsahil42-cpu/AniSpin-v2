@@ -29,6 +29,8 @@ class AnimeDetailsModel {
   final int? popularity;
 
   final String studio;
+  final List<StreamingEpisode> streamingEpisodes;
+  final NextAiringEpisode? nextAiringEpisode;
 
   AnimeDetailsModel({
     required this.id,
@@ -49,6 +51,8 @@ class AnimeDetailsModel {
     required this.format,
     required this.popularity,
     required this.studio,
+    this.streamingEpisodes = const [],
+    this.nextAiringEpisode,
   });
 
   factory AnimeDetailsModel.fromJson(Map<String, dynamic> json) {
@@ -90,6 +94,55 @@ class AnimeDetailsModel {
       studio: (json['studios']?['nodes'] as List?)?.isNotEmpty == true
           ? json['studios']['nodes'][0]['name']
           : '',
+
+      streamingEpisodes: (json['streamingEpisodes'] as List?)
+              ?.map((e) => StreamingEpisode.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+
+      nextAiringEpisode: json['nextAiringEpisode'] != null
+          ? NextAiringEpisode.fromJson(json['nextAiringEpisode'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+}
+
+class StreamingEpisode {
+  final String title;
+  final String thumbnail;
+  final String url;
+  final String site;
+
+  StreamingEpisode({
+    required this.title,
+    required this.thumbnail,
+    required this.url,
+    required this.site,
+  });
+
+  factory StreamingEpisode.fromJson(Map<String, dynamic> json) {
+    return StreamingEpisode(
+      title: json['title']?.toString() ?? '',
+      thumbnail: json['thumbnail']?.toString() ?? '',
+      url: json['url']?.toString() ?? '',
+      site: json['site']?.toString() ?? '',
+    );
+  }
+}
+
+class NextAiringEpisode {
+  final int episode;
+  final int airingAt;
+
+  NextAiringEpisode({
+    required this.episode,
+    required this.airingAt,
+  });
+
+  factory NextAiringEpisode.fromJson(Map<String, dynamic> json) {
+    return NextAiringEpisode(
+      episode: json['episode'] ?? 0,
+      airingAt: json['airingAt'] ?? 0,
     );
   }
 }

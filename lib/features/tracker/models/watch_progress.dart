@@ -9,6 +9,11 @@ class WatchProgress {
   @Index(unique: true)
   late int animeId;
 
+  /// MyAnimeList id — needed to resolve the real stream when resuming playback
+  /// straight from Continue Watching / the tracker (where we don't re-fetch the
+  /// AniList details). Nullable for rows written before this field existed.
+  int? malId;
+
   late String romajiTitle;
   String? englishTitle;
   late String coverImage;

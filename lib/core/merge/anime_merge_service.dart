@@ -51,6 +51,8 @@ class AnimeMergeService {
       format: a.format ?? JikanFieldUtils.upper(j['type']),
       popularity: a.popularity ?? JikanFieldUtils.intField(j, 'members'),
       studio: a.studio.isEmpty ? JikanFieldUtils.firstStudio(j) : a.studio,
+      streamingEpisodes: a.streamingEpisodes,
+      nextAiringEpisode: a.nextAiringEpisode,
     );
   }
 
@@ -74,6 +76,8 @@ class AnimeMergeService {
       format: JikanFieldUtils.upper(j['type']),
       popularity: JikanFieldUtils.intField(j, 'members'),
       studio: JikanFieldUtils.firstStudio(j),
+      streamingEpisodes: const [],
+      nextAiringEpisode: null,
     );
   }
 }

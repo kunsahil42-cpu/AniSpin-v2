@@ -4,30 +4,40 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import '../../tracker/models/watch_progress.dart';
 import '../../tracker/providers/tracker_providers.dart';
-import '../../anime_details/models/episode_model.dart';
+import '../../anime_details/models/stream_source_model.dart';
+import '../providers/stream_provider.dart';
+import '../../../core/error/app_failure.dart';
 
 class VideoPlayerScreen extends ConsumerStatefulWidget {
   final int animeId;
   final int episodeNumber;
-  
+
+  /// MyAnimeList id used to resolve the real stream. Null when we don't know it
+  /// (e.g. an old Continue-Watching row) — the player then shows its error state.
+  final int? malId;
+
   // Passed details via GoRouter extra
   final String romajiTitle;
   final String? englishTitle;
   final String coverImage;
   final String bannerImage;
   final int totalEpisodes;
+  final bool? initialDub;
 
   const VideoPlayerScreen({
     super.key,
     required this.animeId,
     required this.episodeNumber,
+    this.malId,
     required this.romajiTitle,
     this.englishTitle,
     required this.coverImage,
     required this.bannerImage,
     required this.totalEpisodes,
+    this.initialDub,
   });
 
   @override
@@ -49,14 +59,22 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   Timer? _indicatorTimer;
 
   // Selected tracks
-  String _activeAudio = 'Sub';
-  String _activeServer = 'Server 1 (HLS)';
-  String _activeSubtitle = 'English';
+  bool _isDub = false; // false = Sub, true = Dub
+  String _activeSubtitle = 'Off';
+
+  /// Bumped every time a subtitle load starts, so a slow `.vtt` fetch that
+  /// finishes after the user switched tracks (or episode) is discarded instead
+  /// of clobbering the newer selection.
+  int _subtitleEpoch = 0;
+  bool _firstResolve = true;
   double _playbackSpeed = 1.0;
 
   Timer? _controlsTimer;
-  EpisodeModel? _episode;
-  
+
+  // Resolved stream state
+  StreamSource? _source;
+  AppFailure? _error;
+
   // Auto next countdown
   bool _showCountdown = false;
   int _countdownSeconds = 5;
@@ -65,8 +83,8 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _episode = EpisodeModel.mock(widget.animeId, widget.episodeNumber);
-    _initializePlayer();
+    _isDub = widget.initialDub ?? false;
+    _resolveStream();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
@@ -74,20 +92,118 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     ]);
   }
 
+  /// Resolves the real `.m3u8` for the current episode + audio choice, then
+  /// initializes the player. Any failure (including a missing MAL id) lands in
+  /// [_error], which the UI renders as "Stream unavailable" + Retry.
+  Future<void> _resolveStream() async {
+    setState(() {
+      _initialized = false;
+      _error = null;
+    });
+
+    final malId = widget.malId;
+    if (malId == null) {
+      setState(() {
+        _error = AppFailure.notFound('This title has no streaming source.');
+      });
+      return;
+    }
+
+    final req = (malId: malId, episode: widget.episodeNumber, dub: _isDub);
+    try {
+      // Re-resolve fresh each time so Retry actually re-hits the source.
+      ref.invalidate(streamProvider(req));
+      final source = await ref.read(streamProvider(req).future);
+      if (!mounted) return;
+      _source = source;
+      _reconcileSubtitleSelection(source);
+      await _initializePlayer();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = AppFailure.from(e);
+      });
+    }
+  }
+
+  /// Keeps [_activeSubtitle] valid for the newly-resolved [source]. On the very
+  /// first resolve of a subbed stream we auto-enable the source's default (or
+  /// first) caption track; afterwards we respect the user's choice, only
+  /// falling back to 'Off' when their selected language isn't offered.
+  void _reconcileSubtitleSelection(StreamSource source) {
+    final labels = source.subtitles.map((t) => t.label).toList();
+
+    if (_firstResolve) {
+      _firstResolve = false;
+      if (!_isDub && labels.isNotEmpty) {
+        _activeSubtitle = labels.first;
+        return;
+      }
+    }
+    if (_activeSubtitle != 'Off' && !labels.contains(_activeSubtitle)) {
+      _activeSubtitle = 'Off';
+    }
+  }
+
+  /// Fetches the selected track's `.vtt`, parses it and hands the captions to
+  /// the controller. 'Off' clears captions. Guarded by [_subtitleEpoch] so a
+  /// stale fetch can't override a newer selection.
+  Future<void> _loadSubtitle(String label) async {
+    final controller = _controller;
+    if (controller == null) return;
+
+    final epoch = ++_subtitleEpoch;
+
+    if (label == 'Off') {
+      // Empty caption file = nothing rendered.
+      await controller.setClosedCaptionFile(null);
+      if (mounted) setState(() {});
+      return;
+    }
+
+    SubtitleTrack? track;
+    for (final t in _source?.subtitles ?? const <SubtitleTrack>[]) {
+      if (t.label == label) {
+        track = t;
+        break;
+      }
+    }
+    if (track == null) return;
+
+    try {
+      final res = await http.get(
+        Uri.parse(track.url),
+        headers: _source?.headers ?? const {},
+      );
+      if (res.statusCode != 200) return;
+      if (!mounted || epoch != _subtitleEpoch) return; // superseded
+      final captions = WebVTTCaptionFile(res.body);
+      await controller.setClosedCaptionFile(Future.value(captions));
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Error loading subtitle "$label": $e');
+    }
+  }
+
   Future<void> _initializePlayer() async {
+    final source = _source;
+    if (source == null) return;
+
     setState(() {
       _initialized = false;
     });
 
-    final streamUrl = _episode?.servers[_activeAudio]?[_activeServer] ?? '';
-    
     // Dispose previous controller if any
     if (_controller != null) {
+      _controller!.removeListener(_videoListener);
       await _controller!.dispose();
     }
 
-    _controller = VideoPlayerController.networkUrl(Uri.parse(streamUrl));
-    
+    _controller = VideoPlayerController.networkUrl(
+      Uri.parse(source.url),
+      httpHeaders: source.headers,
+    );
+
     try {
       await _controller!.initialize();
       _controller!.addListener(_videoListener);
@@ -103,9 +219,17 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
       setState(() {
         _initialized = true;
       });
+      // A fresh controller starts with no captions — (re)apply the selection.
+      _loadSubtitle(_activeSubtitle);
       _startControlsTimer();
     } catch (e) {
       debugPrint('Error initializing video player: $e');
+      if (mounted) {
+        setState(() {
+          _initialized = false;
+          _error = AppFailure.server('This stream could not be played.');
+        });
+      }
     }
   }
 
@@ -131,6 +255,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     
     final progress = WatchProgress()
       ..animeId = widget.animeId
+      ..malId = widget.malId
       ..romajiTitle = widget.romajiTitle
       ..englishTitle = widget.englishTitle
       ..coverImage = widget.coverImage
@@ -140,8 +265,8 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
       ..lastWatchedPosition = position
       ..lastWatchedDuration = duration
       ..watchPercentage = percentage
-      ..lastWatchedSource = _activeServer
-      ..lastWatchedAudio = _activeAudio
+      ..lastWatchedSource = _isDub ? 'Anikoto (Dub)' : 'Anikoto (Sub)'
+      ..lastWatchedAudio = _isDub ? 'Dub' : 'Sub'
       ..lastWatchedAt = DateTime.now();
 
     // Mark as completed if watched more than 90%
@@ -186,6 +311,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
       context.pushReplacement(
         '/anime/${widget.animeId}/play/${widget.episodeNumber + 1}',
         extra: {
+          'malId': widget.malId,
           'romajiTitle': widget.romajiTitle,
           'englishTitle': widget.englishTitle,
           'coverImage': widget.coverImage,
@@ -281,19 +407,67 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
             // Video display
             Center(
               child: _initialized && _controller != null
-                  ? AspectRatio(
-                      aspectRatio: _controller!.value.aspectRatio,
-                      child: VideoPlayer(_controller!),
+                  // Fill the entire screen (no letterbox bars). The video is laid
+                  // out at its native size inside a FittedBox with BoxFit.cover so
+                  // it scales to cover the full screen, cropping any overflow.
+                  ? SizedBox.expand(
+                      child: FittedBox(
+                        fit: BoxFit.cover,
+                        clipBehavior: Clip.hardEdge,
+                        child: SizedBox(
+                          width: _controller!.value.size.width,
+                          height: _controller!.value.size.height,
+                          child: VideoPlayer(_controller!),
+                        ),
+                      ),
                     )
-                  : const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(color: Color(0xFF7C4DFF)),
-                        SizedBox(height: 16),
-                        Text('Preparing stream...', style: TextStyle(color: Colors.white70)),
-                      ],
-                    ),
+                  : _error != null
+                      ? _buildErrorState()
+                      : const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(color: Color(0xFF7C4DFF)),
+                            SizedBox(height: 16),
+                            Text('Preparing stream...', style: TextStyle(color: Colors.white70)),
+                          ],
+                        ),
             ),
+
+            // Subtitle overlay — rebuilds with playback position via the
+            // controller's ValueNotifier. Lifts above the seek bar while
+            // controls are visible so captions aren't hidden behind them.
+            if (_initialized && _controller != null && _activeSubtitle != 'Off')
+              Positioned(
+                left: 24,
+                right: 24,
+                bottom: _showControls && !_locked ? 96 : 32,
+                child: ValueListenableBuilder<VideoPlayerValue>(
+                  valueListenable: _controller!,
+                  builder: (context, value, _) {
+                    final text = value.caption.text;
+                    if (text.isEmpty) return const SizedBox.shrink();
+                    return Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          text,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
 
             // Top Gradient overlay
             if (_showControls)
@@ -531,12 +705,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                                 label: Text('${_playbackSpeed}x', style: const TextStyle(color: Colors.white)),
                                 onPressed: () => _showSpeedSelector(),
                               ),
-                              const SizedBox(width: 16),
-                              TextButton.icon(
-                                icon: const Icon(Icons.settings, color: Colors.white, size: 16),
-                                label: Text(_activeServer, style: const TextStyle(color: Colors.white)),
-                                onPressed: () => _showServerSelector(),
-                              ),
                             ],
                           ),
                           Row(
@@ -549,7 +717,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                               const SizedBox(width: 16),
                               TextButton.icon(
                                 icon: const Icon(Icons.audiotrack, color: Colors.white, size: 16),
-                                label: Text(_activeAudio, style: const TextStyle(color: Colors.white)),
+                                label: Text(_isDub ? 'Dub' : 'Sub', style: const TextStyle(color: Colors.white)),
                                 onPressed: () => _showAudioSelector(),
                               ),
                             ],
@@ -637,6 +805,57 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     return '$minutes:$seconds';
   }
 
+  /// Shown when the stream can't be resolved or played. Offers a Retry that
+  /// re-resolves from the source, and a Back that leaves the player.
+  Widget _buildErrorState() {
+    final failure = _error;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, color: Colors.white70, size: 48),
+          const SizedBox(height: 16),
+          Text(
+            failure?.title ?? 'Stream unavailable',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            failure?.message ?? 'We could not load this episode.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              OutlinedButton(
+                onPressed: () => context.pop(),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white30),
+                ),
+                child: const Text('Back'),
+              ),
+              const SizedBox(width: 16),
+              ElevatedButton.icon(
+                onPressed: _resolveStream,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C4DFF),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showSpeedSelector() {
     showModalBottomSheet(
       context: context,
@@ -659,53 +878,26 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     );
   }
 
-  void _showServerSelector() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        final options = _episode?.servers[_activeAudio]?.keys.toList() ?? [];
-        return ListView(
-          shrinkWrap: true,
-          children: options.map((server) {
-            return ListTile(
-              title: Text(server),
-              trailing: _activeServer == server ? const Icon(Icons.check, color: Color(0xFF7C4DFF)) : null,
-              onTap: () {
-                setState(() {
-                  _activeServer = server;
-                });
-                Navigator.pop(context);
-                _initializePlayer();
-              },
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
-
   void _showAudioSelector() {
     showModalBottomSheet(
       context: context,
       builder: (context) {
-        final options = _episode?.servers.keys.toList() ?? [];
+        const options = [false, true]; // Sub, Dub
         return ListView(
           shrinkWrap: true,
-          children: options.map((audio) {
+          children: options.map((dub) {
             return ListTile(
-              title: Text(audio == 'Sub' ? '🇯🇵 Japanese (Sub)' : '🇺🇸 English (Dub)'),
-              trailing: _activeAudio == audio ? const Icon(Icons.check, color: Color(0xFF7C4DFF)) : null,
+              title: Text(dub ? '🇺🇸 English (Dub)' : '🇯🇵 Japanese (Sub)'),
+              trailing: _isDub == dub ? const Icon(Icons.check, color: Color(0xFF7C4DFF)) : null,
               onTap: () {
-                setState(() {
-                  _activeAudio = audio;
-                  // Auto pick first server of new audio option
-                  final servers = _episode?.servers[audio]?.keys.toList() ?? [];
-                  if (servers.isNotEmpty) {
-                    _activeServer = servers.first;
-                  }
-                });
                 Navigator.pop(context);
-                _initializePlayer();
+                if (_isDub == dub) return;
+                setState(() {
+                  _isDub = dub;
+                  _activeSubtitle = 'Off';
+                });
+                // Re-resolve the stream for the new audio track.
+                _resolveStream();
               },
             );
           }).toList(),
@@ -718,18 +910,21 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     showModalBottomSheet(
       context: context,
       builder: (context) {
-        final options = _episode?.subtitles ?? [];
+        final tracks = _source?.subtitles ?? const [];
+        final labels = ['Off', ...tracks.map((t) => t.label)];
         return ListView(
           shrinkWrap: true,
-          children: options.map((sub) {
+          children: labels.map((label) {
             return ListTile(
-              title: Text(sub),
-              trailing: _activeSubtitle == sub ? const Icon(Icons.check, color: Color(0xFF7C4DFF)) : null,
+              title: Text(label),
+              trailing: _activeSubtitle == label ? const Icon(Icons.check, color: Color(0xFF7C4DFF)) : null,
               onTap: () {
-                setState(() {
-                  _activeSubtitle = sub;
-                });
                 Navigator.pop(context);
+                if (_activeSubtitle == label) return;
+                setState(() {
+                  _activeSubtitle = label;
+                });
+                _loadSubtitle(label);
               },
             );
           }).toList(),

@@ -54,6 +54,7 @@ class TrackerScreen extends ConsumerWidget {
                         context.push(
                           '/anime/${item.animeId}/play/${item.lastWatchedEpisode}',
                           extra: {
+                            'malId': item.malId,
                             'romajiTitle': item.romajiTitle,
                             'englishTitle': item.englishTitle,
                             'coverImage': item.coverImage,

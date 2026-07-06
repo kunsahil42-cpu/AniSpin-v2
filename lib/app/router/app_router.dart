@@ -88,11 +88,13 @@ final GoRouter appRouter = GoRouter(
         return VideoPlayerScreen(
           animeId: animeId,
           episodeNumber: episode,
+          malId: extra['malId'] as int?,
           romajiTitle: extra['romajiTitle'] as String,
           englishTitle: extra['englishTitle'] as String?,
           coverImage: extra['coverImage'] as String,
           bannerImage: extra['bannerImage'] as String,
           totalEpisodes: extra['totalEpisodes'] as int,
+          initialDub: extra['dub'] as bool?,
         );
       },
     ),

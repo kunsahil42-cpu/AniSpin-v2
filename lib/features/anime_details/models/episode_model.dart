@@ -21,6 +21,26 @@ class EpisodeModel {
     required this.subtitles,
   });
 
+  factory EpisodeModel.create({
+    required int number,
+    required String title,
+    required String thumbnail,
+    String? airDate,
+    String? runtime,
+    String? description,
+  }) {
+    return EpisodeModel(
+      number: number,
+      title: title,
+      thumbnail: thumbnail,
+      airDate: airDate,
+      runtime: runtime ?? '24 min',
+      description: description ?? 'Watch episode $number.',
+      servers: const {},
+      subtitles: const [],
+    );
+  }
+
   factory EpisodeModel.mock(int animeId, int episodeNumber) {
     // Stable high-quality public test streams
     const subServers = {

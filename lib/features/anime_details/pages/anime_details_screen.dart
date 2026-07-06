@@ -225,11 +225,15 @@ class AnimeDetailsScreen extends ConsumerWidget {
 
                         EpisodeList(
                           animeId: animeData.id,
+                          malId: animeData.idMal,
                           totalEpisodes: animeData.episodes ?? 12,
+                          status: animeData.status,
                           romajiTitle: animeData.romajiTitle,
                           englishTitle: animeData.englishTitle,
                           coverImage: animeData.coverImage,
                           bannerImage: animeData.bannerImage,
+                          streamingEpisodes: animeData.streamingEpisodes,
+                          nextAiringEpisode: animeData.nextAiringEpisode,
                         ),
 
                         const SizedBox(height: 40),

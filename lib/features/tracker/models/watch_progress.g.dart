@@ -72,18 +72,23 @@ const WatchProgressSchema = CollectionSchema(
       name: r'lastWatchedSource',
       type: IsarType.string,
     ),
-    r'romajiTitle': PropertySchema(
+    r'malId': PropertySchema(
       id: 11,
+      name: r'malId',
+      type: IsarType.long,
+    ),
+    r'romajiTitle': PropertySchema(
+      id: 12,
       name: r'romajiTitle',
       type: IsarType.string,
     ),
     r'totalEpisodes': PropertySchema(
-      id: 12,
+      id: 13,
       name: r'totalEpisodes',
       type: IsarType.long,
     ),
     r'watchPercentage': PropertySchema(
-      id: 13,
+      id: 14,
       name: r'watchPercentage',
       type: IsarType.double,
     )
@@ -159,9 +164,10 @@ void _watchProgressSerialize(
   writer.writeLong(offsets[8], object.lastWatchedEpisode);
   writer.writeLong(offsets[9], object.lastWatchedPosition);
   writer.writeString(offsets[10], object.lastWatchedSource);
-  writer.writeString(offsets[11], object.romajiTitle);
-  writer.writeLong(offsets[12], object.totalEpisodes);
-  writer.writeDouble(offsets[13], object.watchPercentage);
+  writer.writeLong(offsets[11], object.malId);
+  writer.writeString(offsets[12], object.romajiTitle);
+  writer.writeLong(offsets[13], object.totalEpisodes);
+  writer.writeDouble(offsets[14], object.watchPercentage);
 }
 
 WatchProgress _watchProgressDeserialize(
@@ -183,9 +189,10 @@ WatchProgress _watchProgressDeserialize(
   object.lastWatchedEpisode = reader.readLong(offsets[8]);
   object.lastWatchedPosition = reader.readLong(offsets[9]);
   object.lastWatchedSource = reader.readString(offsets[10]);
-  object.romajiTitle = reader.readString(offsets[11]);
-  object.totalEpisodes = reader.readLongOrNull(offsets[12]);
-  object.watchPercentage = reader.readDouble(offsets[13]);
+  object.malId = reader.readLongOrNull(offsets[11]);
+  object.romajiTitle = reader.readString(offsets[12]);
+  object.totalEpisodes = reader.readLongOrNull(offsets[13]);
+  object.watchPercentage = reader.readDouble(offsets[14]);
   return object;
 }
 
@@ -219,10 +226,12 @@ P _watchProgressDeserializeProp<P>(
     case 10:
       return (reader.readString(offset)) as P;
     case 11:
-      return (reader.readString(offset)) as P;
-    case 12:
       return (reader.readLongOrNull(offset)) as P;
+    case 12:
+      return (reader.readString(offset)) as P;
     case 13:
+      return (reader.readLongOrNull(offset)) as P;
+    case 14:
       return (reader.readDouble(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -1675,6 +1684,80 @@ extension WatchProgressQueryFilter
   }
 
   QueryBuilder<WatchProgress, WatchProgress, QAfterFilterCondition>
+      malIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'malId',
+      ));
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterFilterCondition>
+      malIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'malId',
+      ));
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterFilterCondition>
+      malIdEqualTo(int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'malId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterFilterCondition>
+      malIdGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'malId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterFilterCondition>
+      malIdLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'malId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterFilterCondition>
+      malIdBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'malId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterFilterCondition>
       romajiTitleEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -2095,6 +2178,18 @@ extension WatchProgressQuerySortBy
     });
   }
 
+  QueryBuilder<WatchProgress, WatchProgress, QAfterSortBy> sortByMalId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'malId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterSortBy> sortByMalIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'malId', Sort.desc);
+    });
+  }
+
   QueryBuilder<WatchProgress, WatchProgress, QAfterSortBy> sortByRomajiTitle() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'romajiTitle', Sort.asc);
@@ -2287,6 +2382,18 @@ extension WatchProgressQuerySortThenBy
     });
   }
 
+  QueryBuilder<WatchProgress, WatchProgress, QAfterSortBy> thenByMalId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'malId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterSortBy> thenByMalIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'malId', Sort.desc);
+    });
+  }
+
   QueryBuilder<WatchProgress, WatchProgress, QAfterSortBy> thenByRomajiTitle() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'romajiTitle', Sort.asc);
@@ -2409,6 +2516,12 @@ extension WatchProgressQueryWhereDistinct
     });
   }
 
+  QueryBuilder<WatchProgress, WatchProgress, QDistinct> distinctByMalId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'malId');
+    });
+  }
+
   QueryBuilder<WatchProgress, WatchProgress, QDistinct> distinctByRomajiTitle(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -2510,6 +2623,12 @@ extension WatchProgressQueryProperty
       lastWatchedSourceProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'lastWatchedSource');
+    });
+  }
+
+  QueryBuilder<WatchProgress, int?, QQueryOperations> malIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'malId');
     });
   }
 

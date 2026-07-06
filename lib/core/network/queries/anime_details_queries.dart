@@ -43,6 +43,18 @@ query GetAnimeDetails($id: Int) {
         name
       }
     }
+
+    streamingEpisodes {
+      title
+      thumbnail
+      url
+      site
+    }
+
+    nextAiringEpisode {
+      episode
+      airingAt
+    }
   }
 }
 ''';
