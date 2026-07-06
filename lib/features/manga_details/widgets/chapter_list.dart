@@ -390,6 +390,33 @@ class _ChapterRow extends StatelessWidget {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
 
+    final String badgeText;
+    final Color badgeColor;
+    final List<Color> gradientColors;
+    final IconData badgeIcon;
+
+    if (chapter.isColored && !chapter.isAutoTranslate) {
+      badgeText = 'Colored English';
+      badgeColor = const Color(0xFF4CAF50);
+      gradientColors = [const Color(0xFF4CAF50), const Color(0xFF2E7D32)];
+      badgeIcon = Icons.check_circle_rounded;
+    } else if (chapter.isColored && chapter.isAutoTranslate) {
+      badgeText = 'Colored (Auto Translated)';
+      badgeColor = const Color(0xFF7C4DFF);
+      gradientColors = [const Color(0xFF7C4DFF), const Color(0xFF651FFF)];
+      badgeIcon = Icons.palette_rounded;
+    } else if (!chapter.isColored && !chapter.isAutoTranslate) {
+      badgeText = 'Black & White English';
+      badgeColor = const Color(0xFF757575);
+      gradientColors = [const Color(0xFF757575), const Color(0xFF424242)];
+      badgeIcon = Icons.book_rounded;
+    } else {
+      badgeText = 'Black & White (Auto Translated)';
+      badgeColor = const Color(0xFFFF9800);
+      gradientColors = [const Color(0xFFFF9800), const Color(0xFFF57C00)];
+      badgeIcon = Icons.translate_rounded;
+    }
+
     return Card(
       elevation: isCurrent ? 4 : 0,
       color: isCurrent
@@ -436,13 +463,54 @@ class _ChapterRow extends StatelessWidget {
                         color: isCurrent ? primaryColor : null,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: gradientColors),
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: [
+                          BoxShadow(
+                            color: badgeColor.withValues(alpha: 0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              badgeIcon,
+                              size: 10,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              badgeText,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
-                        Text(
-                          chapter.scanGroup,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                        Flexible(
+                          child: Text(
+                            chapter.scanGroup,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),

@@ -114,6 +114,13 @@ class MangaDexApi {
         'includes[]': ['scanlation_group'],
         ...?queryParams,
       };
+
+      if (queryParams != null &&
+          queryParams.containsKey('translatedLanguage[]') &&
+          queryParams['translatedLanguage[]'] == null) {
+        params.remove('translatedLanguage[]');
+      }
+
       final path = _buildPath('/manga/$mangaDexId/feed', params);
 
       Map<String, dynamic> response;

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/error/app_failure.dart';
 import '../../../core/network/mangadex/mangadex_api.dart';
+import '../../../core/database/translation_cache.dart';
 import '../models/chapter_model.dart';
 import '../models/manga_details_model.dart';
 import '../repository/manga_details_repository.dart';
@@ -62,10 +63,6 @@ final mangaChaptersProvider = FutureProvider.family<List<ChapterModel>, int>(
       return mockChapters;
     }
 
-    List<ChapterModel>? selectedChapters;
-    String? selectedDexId;
-    int selectedScore = -1;
-
     // Only ever a handful of authoritative (link-matched) candidates; cap the
     // scan so a fuzzy title fallback returning many IDs can't fan out into
     // dozens of full feed downloads. This bounds candidate MANGA, never chapters.
@@ -73,15 +70,74 @@ final mangaChaptersProvider = FutureProvider.family<List<ChapterModel>, int>(
     final candidateIds =
         dexIds.length > maxCandidates ? dexIds.sublist(0, maxCandidates) : dexIds;
 
-    for (final dexId in candidateIds) {
-      try {
-        final feed = await dexApi.getMangaFeed(dexId);
+    final allDexIds = List<String>.from(candidateIds);
+    final isColoredMap = <String, bool>{};
 
-        final chaptersMap = <int, ChapterModel>{};
-        // Tracks whether the retained entry for a chapter number is external
-        // (VIZ/MangaPlus link, unreadable in-app) so a hosted duplicate can
-        // upgrade it — without ever dropping the chapter from the list.
-        final externalByNum = <int, bool>{};
+    for (final id in candidateIds) {
+      try {
+        final detailsData = await dexApi.getMangaDetails(id);
+        
+        final attrs = detailsData['data']?['attributes'] as Map? ?? {};
+        final titleMap = attrs['title'] as Map? ?? {};
+        final titleStr = (titleMap['en'] ?? titleMap.values.firstOrNull ?? '').toString().toLowerCase();
+        final tagsList = attrs['tags'] as List? ?? [];
+        final isColored = titleStr.contains('colored') ||
+            titleStr.contains('coloured') ||
+            tagsList.any((tag) {
+              if (tag is! Map) return false;
+              final nameMap = tag['attributes']?['name'] as Map? ?? {};
+              final enName = (nameMap['en'] ?? '').toString().toLowerCase();
+              return enName.contains('colored') || enName.contains('coloured');
+            });
+        
+        isColoredMap[id] = isColored;
+
+        final relationships = detailsData['data']?['relationships'] as List? ?? [];
+        for (final rel in relationships) {
+          if (rel is Map && rel['type'] == 'manga') {
+            final relType = rel['related'] as String?;
+            if (relType == 'colored' || relType == 'monochrome') {
+              final relatedId = rel['id'] as String?;
+              if (relatedId != null && !allDexIds.contains(relatedId)) {
+                allDexIds.add(relatedId);
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    for (final id in allDexIds) {
+      if (!isColoredMap.containsKey(id)) {
+        try {
+          final detailsData = await dexApi.getMangaDetails(id);
+          final attrs = detailsData['data']?['attributes'] as Map? ?? {};
+          final titleMap = attrs['title'] as Map? ?? {};
+          final titleStr = (titleMap['en'] ?? titleMap.values.firstOrNull ?? '').toString().toLowerCase();
+          final tagsList = attrs['tags'] as List? ?? [];
+          final isColored = titleStr.contains('colored') ||
+              titleStr.contains('coloured') ||
+              tagsList.any((tag) {
+                if (tag is! Map) return false;
+                final nameMap = tag['attributes']?['name'] as Map? ?? {};
+                final enName = (nameMap['en'] ?? '').toString().toLowerCase();
+                return enName.contains('colored') || enName.contains('coloured');
+              });
+          isColoredMap[id] = isColored;
+        } catch (_) {
+          isColoredMap[id] = false;
+        }
+      }
+    }
+
+    final chaptersMap = <int, ChapterModel>{};
+    final externalByNum = <int, bool>{};
+    String? selectedDexId;
+
+    for (final dexId in allDexIds) {
+      try {
+        final feed = await dexApi.getMangaFeed(dexId, const {'translatedLanguage[]': null});
+        final isColored = isColoredMap[dexId] ?? false;
 
         for (final item in feed) {
           final id = item['id'] as String;
@@ -106,7 +162,6 @@ final mangaChaptersProvider = FutureProvider.family<List<ChapterModel>, int>(
               : 'Chapter $chNum';
 
           final publishAtStr = attrs['publishAt'] as String? ?? '';
-
           String dateStr = '';
           if (publishAtStr.isNotEmpty) {
             try {
@@ -117,8 +172,6 @@ final mangaChaptersProvider = FutureProvider.family<List<ChapterModel>, int>(
 
           final lang = (attrs['translatedLanguage'] as String? ?? 'en').toUpperCase();
 
-          // Resolve the real translator from the included scanlation_group
-          // relationship; fall back to a generic label if it's absent.
           String scanGroup = 'MangaDex';
           final relationships = item['relationships'] as List? ?? const [];
           for (final rel in relationships) {
@@ -132,6 +185,10 @@ final mangaChaptersProvider = FutureProvider.family<List<ChapterModel>, int>(
             }
           }
 
+          final finalColored = isColored ||
+              scanGroup.toLowerCase().contains('color') ||
+              scanGroup.toLowerCase().contains('coloured');
+
           final chapterModel = ChapterModel(
             id: id,
             number: chNum,
@@ -140,39 +197,24 @@ final mangaChaptersProvider = FutureProvider.family<List<ChapterModel>, int>(
             date: dateStr,
             language: lang,
             pages: const [],
+            isAutoTranslate: lang.toUpperCase() != 'EN',
+            isColored: finalColored,
           );
 
           final existing = chaptersMap[chNum];
-          if (existing == null) {
+          final existingExternal = externalByNum[chNum] ?? false;
+
+          if (existing == null ||
+              _shouldReplace(existing, existingExternal, chapterModel, isExternal)) {
             chaptersMap[chNum] = chapterModel;
             externalByNum[chNum] = isExternal;
-          } else if ((externalByNum[chNum] ?? false) && !isExternal) {
-            // Prefer a MangaDex-hosted version over a previously-seen external
-            // one so the reader can actually load pages for this chapter.
-            chaptersMap[chNum] = chapterModel;
-            externalByNum[chNum] = false;
+            selectedDexId = dexId;
           }
         }
-
-        if (chaptersMap.isEmpty) continue;
-
-        final readableCount =
-            externalByNum.values.where((external) => !external).length;
-        // Rank by total unique chapters first (the canonical complete series
-        // always wins), then by how many are readable in-app. This prevents a
-        // small fully-hosted edition from shadowing the full series.
-        final score = chaptersMap.length * 1000000 + readableCount;
-        if (score > selectedScore) {
-          selectedScore = score;
-          selectedChapters = chaptersMap.values.toList();
-          selectedDexId = dexId;
-        }
-      } catch (_) {
-        // Continue to next candidate
-      }
+      } catch (_) {}
     }
 
-    if (selectedChapters == null || selectedChapters.isEmpty) {
+    if (chaptersMap.isEmpty) {
       final mockChapters = List.generate(
         details.chapters ?? 24,
         (i) => ChapterModel.mock(mangaId, i + 1),
@@ -181,17 +223,54 @@ final mangaChaptersProvider = FutureProvider.family<List<ChapterModel>, int>(
       return mockChapters;
     }
 
-    // Cache the chosen MangaDex ID so subsequent pages requests route to it
     if (selectedDexId != null) {
       MangaDexApi.uuidToId(selectedDexId);
       MangaDexApi.registerMapping(details.id, selectedDexId);
     }
 
-    // Sort numerically by chapter number
+    final selectedChapters = chaptersMap.values.toList();
     selectedChapters.sort((a, b) => a.number.compareTo(b.number));
     return selectedChapters;
   }
 );
+
+double _getChapterScore(ChapterModel ch, bool isExternal) {
+  final double hostPenalty = isExternal ? 100.0 : 0.0;
+  final bool isEnglish = ch.language.toUpperCase() == 'EN';
+  
+  int typePriority;
+  if (ch.isColored && isEnglish) {
+    typePriority = 1;
+  } else if (ch.isColored && !isEnglish) {
+    typePriority = 2;
+  } else if (!ch.isColored && isEnglish) {
+    typePriority = 3;
+  } else {
+    typePriority = 4;
+  }
+
+  int langPriority;
+  final l = ch.language.toUpperCase();
+  if (l == 'EN') {
+    langPriority = 0;
+  } else if (l == 'JA') {
+    langPriority = 1;
+  } else if (l == 'KO') {
+    langPriority = 2;
+  } else if (l == 'ZH' || l.startsWith('ZH-')) {
+    langPriority = 3;
+  } else {
+    langPriority = 4;
+  }
+
+  return hostPenalty + (typePriority * 10) + langPriority;
+}
+
+bool _shouldReplace(ChapterModel existing, bool existingExternal, ChapterModel candidate, bool candidateExternal) {
+  final existingScore = _getChapterScore(existing, existingExternal);
+  final candidateScore = _getChapterScore(candidate, candidateExternal);
+  return candidateScore < existingScore;
+}
 
 /// Argument helper for chapter pages provider
 class ChapterPagesArg {
@@ -229,6 +308,12 @@ final mangaChapterPagesProvider = FutureProvider.autoDispose.family<List<String>
     final chapter = chaptersAsync[chapterIndex];
 
     if (chapter.id != null) {
+      if (chapter.isAutoTranslate) {
+        final cached = await TranslationCache().get(chapter.id!);
+        if (cached != null) {
+          return cached;
+        }
+      }
       final dexApi = ref.read(mangaDexApiProvider);
       return await dexApi.getChapterPages(chapter.id!);
     }

@@ -6,6 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../../tracker/models/reading_progress.dart';
 import '../../tracker/providers/tracker_providers.dart';
 import '../../manga_details/providers/manga_details_provider.dart';
+import '../../manga_details/models/chapter_model.dart';
+import '../providers/ocr_translation_provider.dart';
+import '../../../core/database/translation_cache.dart';
 
 class MangaReaderScreen extends ConsumerStatefulWidget {
   final int mangaId;
@@ -171,6 +174,65 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
       }
     });
 
+    final chaptersAsync = ref.watch(mangaChaptersProvider(widget.mangaId));
+    final chapters = chaptersAsync.valueOrNull ?? [];
+    ChapterModel? chapter;
+    for (final c in chapters) {
+      if (c.number == widget.chapterNumber) {
+        chapter = c;
+        break;
+      }
+    }
+
+    final isAutoTranslate = chapter?.isAutoTranslate ?? false;
+    final pipelineId = chapter?.id ?? '${widget.mangaId}_${widget.chapterNumber}';
+
+    if (isAutoTranslate) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(ocrTranslationPipelineProvider(pipelineId).notifier).startPipeline();
+      });
+    }
+
+    final pipelineState = isAutoTranslate
+        ? ref.watch(ocrTranslationPipelineProvider(pipelineId))
+        : null;
+
+    if (isAutoTranslate) {
+      ref.listen<OcrTranslationState>(
+        ocrTranslationPipelineProvider(pipelineId),
+        (previous, next) {
+          if (next.status == OcrTranslationStatus.completed) {
+            pagesAsync.whenData((pages) {
+              TranslationCache().put(pipelineId, pages);
+            });
+          }
+        },
+      );
+    }
+
+    final isColored = chapter?.isColored ?? false;
+    final String badgeText;
+    final Color badgeColor;
+    final IconData badgeIcon;
+
+    if (isColored && !isAutoTranslate) {
+      badgeText = 'Colored English';
+      badgeColor = const Color(0xFF4CAF50);
+      badgeIcon = Icons.check_circle_rounded;
+    } else if (isColored && isAutoTranslate) {
+      badgeText = 'Colored (Auto Translated)';
+      badgeColor = const Color(0xFF7C4DFF);
+      badgeIcon = Icons.palette_rounded;
+    } else if (!isColored && !isAutoTranslate) {
+      badgeText = 'Black & White English';
+      badgeColor = const Color(0xFF757575);
+      badgeIcon = Icons.book_rounded;
+    } else {
+      badgeText = 'Black & White (Auto Translated)';
+      badgeColor = const Color(0xFFFF9800);
+      badgeIcon = Icons.translate_rounded;
+    }
+
     return pagesAsync.when(
       loading: () => const Scaffold(
         backgroundColor: Colors.black,
@@ -248,6 +310,10 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
                     : _buildVerticalReader(pages),
               ),
 
+              // Floating translation progress banner
+              if (pipelineState != null)
+                _buildTranslationBanner(context, pipelineState),
+
               // Header Overlay
               if (_showOverlays)
                 Positioned(
@@ -284,12 +350,54 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              Text(
-                                'Chapter ${widget.chapterNumber} / ${widget.totalChapters}',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                ),
+                              Row(
+                                children: [
+                                  Text(
+                                    'Chapter ${widget.chapterNumber} / ${widget.totalChapters}',
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  if (chapter != null) ...[
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: badgeColor.withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(
+                                            color: badgeColor.withValues(alpha: 0.5),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                badgeIcon,
+                                                size: 9,
+                                                color: Colors.white,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                badgeText,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ],
                           ),
@@ -459,6 +567,88 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildTranslationBanner(BuildContext context, OcrTranslationState state) {
+    final theme = Theme.of(context);
+    final isRunning = state.status.isRunning;
+    final isCompleted = state.status == OcrTranslationStatus.completed;
+
+    if (!isRunning && !isCompleted) return const SizedBox.shrink();
+
+    return Positioned(
+      top: 80, // Just below the header bar
+      left: 16,
+      right: 16,
+      child: Center(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.85),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isCompleted
+                  ? Colors.green.withValues(alpha: 0.5)
+                  : const Color(0xFF7C4DFF).withValues(alpha: 0.5),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (isCompleted ? Colors.green : const Color(0xFF7C4DFF))
+                    .withValues(alpha: 0.25),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isRunning)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7C4DFF)),
+                  ),
+                )
+              else
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.green,
+                  size: 18,
+                ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      isCompleted ? 'Translated' : 'Auto-Translating',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      state.message,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

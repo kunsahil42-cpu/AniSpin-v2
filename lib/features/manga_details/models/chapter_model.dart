@@ -6,6 +6,8 @@ class ChapterModel {
   final String date;
   final String language;
   final List<String> pages;
+  final bool isAutoTranslate;
+  final bool isColored;
 
   ChapterModel({
     this.id,
@@ -15,6 +17,8 @@ class ChapterModel {
     required this.date,
     required this.language,
     required this.pages,
+    this.isAutoTranslate = false,
+    this.isColored = false,
   });
 
   factory ChapterModel.mock(int mangaId, int chapterNumber) {
@@ -33,6 +37,8 @@ class ChapterModel {
       date: 'July ${2 + chapterNumber}, 2026',
       language: 'EN',
       pages: pageUrls,
+      isAutoTranslate: false,
+      isColored: false,
     );
   }
 }
