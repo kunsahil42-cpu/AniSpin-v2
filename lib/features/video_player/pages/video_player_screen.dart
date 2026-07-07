@@ -10,6 +10,8 @@ import '../../tracker/providers/tracker_providers.dart';
 import '../../anime_details/models/stream_source_model.dart';
 import '../providers/stream_provider.dart';
 import '../../../core/error/app_failure.dart';
+import '../../settings/providers/settings_provider.dart';
+import '../../settings/models/app_settings.dart';
 
 class VideoPlayerScreen extends ConsumerStatefulWidget {
   final int animeId;
@@ -84,7 +86,9 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _isDub = widget.initialDub ?? false;
+    final settings = ref.read(settingsNotifierProvider);
+    _isDub = widget.initialDub ?? (settings.defaultAudio == AudioOption.dub);
+    _playbackSpeed = settings.playbackSpeed;
     Future.microtask(() => _resolveStream());
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     SystemChrome.setPreferredOrientations([
@@ -216,6 +220,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
         await _controller!.seekTo(Duration(milliseconds: savedProgress.lastWatchedPosition));
       }
       
+      await _controller!.setPlaybackSpeed(_playbackSpeed);
       await _controller!.play();
       setState(() {
         _initialized = true;
@@ -246,7 +251,10 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
 
       // Check if video is finished -> trigger Auto Next countdown
       if (_controller!.value.position >= _controller!.value.duration && !_showCountdown) {
-        _triggerAutoNext();
+        final settings = ref.read(settingsNotifierProvider);
+        if (settings.autoNextEpisode) {
+          _triggerAutoNext();
+        }
       }
     }
   }

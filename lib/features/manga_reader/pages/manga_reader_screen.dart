@@ -9,6 +9,8 @@ import '../../manga_details/providers/manga_details_provider.dart';
 import '../../manga_details/models/chapter_model.dart';
 import '../providers/ocr_translation_provider.dart';
 import '../../../core/database/translation_cache.dart';
+import '../../settings/providers/settings_provider.dart';
+import '../../settings/models/app_settings.dart';
 
 class MangaReaderScreen extends ConsumerStatefulWidget {
   final int mangaId;
@@ -43,6 +45,7 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
   bool _isHorizontal = true; // Layout toggle
   bool _showOverlays = true;
   int _currentPage = 1;
+  bool _firstLoad = true;
 
   // Zoom parameters
   final Map<int, TransformationController> _transformationControllers = {};
@@ -50,6 +53,8 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
   @override
   void initState() {
     super.initState();
+    final settings = ref.read(settingsNotifierProvider);
+    _isHorizontal = settings.readingDirection == ReadingDirectionOption.horizontal;
     _pageController = PageController();
     _scrollController = ScrollController();
     
@@ -66,7 +71,8 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
     _saveReadingProgress(pages.length);
 
     // Preload next page
-    if (index + 1 < pages.length) {
+    final settings = ref.read(settingsNotifierProvider);
+    if (settings.preloadPages && index + 1 < pages.length) {
       precacheImage(
         CachedNetworkImageProvider(pages[index + 1]),
         context,
@@ -184,6 +190,36 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
         });
       }
     });
+
+    final settings = ref.watch(settingsNotifierProvider);
+    final progressAsync = ref.watch(mangaProgressProvider(widget.mangaId));
+
+    if (settings.rememberLastPage && _firstLoad) {
+      pagesAsync.whenData((pages) {
+        progressAsync.whenData((progress) {
+          if (progress != null && progress.lastReadChapter == widget.chapterNumber && progress.lastReadPage > 1) {
+            _firstLoad = false;
+            final pageNum = progress.lastReadPage;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                setState(() {
+                  _currentPage = pageNum;
+                });
+                if (_isHorizontal || settings.readingMode == ReadingModeOption.pageByPage) {
+                  if (_pageController.hasClients) {
+                    _pageController.jumpToPage(pageNum - 1);
+                  }
+                } else {
+                  if (_scrollController.hasClients) {
+                    _scrollController.jumpTo((pageNum - 1) * 600.0);
+                  }
+                }
+              }
+            });
+          }
+        });
+      });
+    }
 
     final chaptersAsync = ref.watch(mangaChaptersProvider(widget.mangaId));
     final chapters = chaptersAsync.valueOrNull ?? [];
@@ -316,9 +352,9 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
               // Reader Content
               GestureDetector(
                 onTap: _toggleOverlays,
-                child: _isHorizontal 
-                    ? _buildHorizontalReader(pages) 
-                    : _buildVerticalReader(pages),
+                child: (_isHorizontal || settings.readingMode == ReadingModeOption.pageByPage)
+                    ? _buildHorizontalReader(pages, _isHorizontal ? Axis.horizontal : Axis.vertical, settings)
+                    : _buildVerticalReader(pages, settings),
               ),
 
               // Floating translation progress banner
@@ -493,9 +529,10 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
     );
   }
 
-  Widget _buildHorizontalReader(List<String> pages) {
+  Widget _buildHorizontalReader(List<String> pages, Axis direction, AppSettings settings) {
     return PageView.builder(
       controller: _pageController,
+      scrollDirection: direction,
       onPageChanged: (idx) => _onPageChanged(idx, pages),
       itemCount: pages.length,
       itemBuilder: (context, index) {
@@ -510,7 +547,7 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
             minScale: 1.0,
             maxScale: 4.0,
             child: GestureDetector(
-              onDoubleTap: () => _doubleTapZoom(index),
+              onDoubleTap: settings.doubleTapZoom ? () => _doubleTapZoom(index) : null,
               child: CachedNetworkImage(
                 imageUrl: pages[index],
                 fit: BoxFit.contain,
@@ -528,7 +565,7 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
     );
   }
 
-  Widget _buildVerticalReader(List<String> pages) {
+  Widget _buildVerticalReader(List<String> pages, AppSettings settings) {
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (_scrollController.hasClients) {
@@ -562,7 +599,7 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
             minScale: 1.0,
             maxScale: 4.0,
             child: GestureDetector(
-              onDoubleTap: () => _doubleTapZoom(index),
+              onDoubleTap: settings.doubleTapZoom ? () => _doubleTapZoom(index) : null,
               child: CachedNetworkImage(
                 imageUrl: pages[index],
                 fit: BoxFit.fitWidth,

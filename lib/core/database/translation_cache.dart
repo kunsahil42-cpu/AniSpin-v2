@@ -39,4 +39,14 @@ class TranslationCache {
       }
     } catch (_) {}
   }
+
+  Future<void> clear() async {
+    await _init();
+    _cache.clear();
+    try {
+      if (_cacheFile != null && await _cacheFile!.exists()) {
+        await _cacheFile!.delete();
+      }
+    } catch (_) {}
+  }
 }
