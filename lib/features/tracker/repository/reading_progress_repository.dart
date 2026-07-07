@@ -28,14 +28,16 @@ class ReadingProgressRepository {
 
   Future<List<ReadingProgress>> getContinueReading() async {
     return await _isar.collection<ReadingProgress>()
-        .where()
+        .filter()
+        .mangaIdGreaterThan(0)
         .sortByLastReadAtDesc()
         .findAll();
   }
 
   Stream<List<ReadingProgress>> watchContinueReading() {
     return _isar.collection<ReadingProgress>()
-        .where()
+        .filter()
+        .mangaIdGreaterThan(0)
         .sortByLastReadAtDesc()
         .watch(fireImmediately: true);
   }

@@ -327,6 +327,95 @@ void _readingProgressAttach(
     IsarCollection<dynamic> col, Id id, ReadingProgress object) {
   object.id = id;
 }
+extension ReadingProgressQueryWhere on QueryBuilder<ReadingProgress, ReadingProgress, QWhereClause> {
+  QueryBuilder<ReadingProgress, ReadingProgress, QAfterWhereClause> mangaIdEqualTo(int mangaId) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'mangaId',
+        value: [mangaId],
+      ));
+    });
+  }
+
+  QueryBuilder<ReadingProgress, ReadingProgress, QAfterWhereClause> mangaIdNotEqualTo(int mangaId) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'mangaId',
+              lower: [],
+              upper: [mangaId],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'mangaId',
+              lower: [mangaId],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'mangaId',
+              lower: [mangaId],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'mangaId',
+              lower: [],
+              upper: [mangaId],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<ReadingProgress, ReadingProgress, QAfterWhereClause> mangaIdGreaterThan(
+    int mangaId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'mangaId',
+        lower: [mangaId],
+        includeLower: include,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<ReadingProgress, ReadingProgress, QAfterWhereClause> mangaIdLessThan(
+    int mangaId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'mangaId',
+        lower: [],
+        upper: [mangaId],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<ReadingProgress, ReadingProgress, QAfterWhereClause> mangaIdBetween(
+    int lowerMangaId,
+    int upperMangaId, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'mangaId',
+        lower: [lowerMangaId],
+        includeLower: includeLower,
+        upper: [upperMangaId],
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+}
 
 extension ReadingProgressQueryFilter on QueryBuilder<ReadingProgress, ReadingProgress, QFilterCondition> {
   QueryBuilder<ReadingProgress, ReadingProgress, QAfterFilterCondition> mangaIdEqualTo(int value) {
@@ -334,6 +423,49 @@ extension ReadingProgressQueryFilter on QueryBuilder<ReadingProgress, ReadingPro
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'mangaId',
         value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ReadingProgress, ReadingProgress, QAfterFilterCondition> mangaIdGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'mangaId',
+        value: value,
+        include: include,
+      ));
+    });
+  }
+
+  QueryBuilder<ReadingProgress, ReadingProgress, QAfterFilterCondition> mangaIdLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        property: r'mangaId',
+        value: value,
+        include: include,
+      ));
+    });
+  }
+
+  QueryBuilder<ReadingProgress, ReadingProgress, QAfterFilterCondition> mangaIdBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'mangaId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
       ));
     });
   }

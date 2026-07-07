@@ -214,6 +214,16 @@ final mangaChaptersProvider = FutureProvider.family<List<ChapterModel>, int>(
       } catch (_) {}
     }
 
+    // Fill in any gaps from 1 to details.chapters (if details.chapters is available)
+    final totalCh = details.chapters ?? 0;
+    if (totalCh > 0) {
+      for (int i = 1; i <= totalCh; i++) {
+        if (!chaptersMap.containsKey(i)) {
+          chaptersMap[i] = ChapterModel.mock(mangaId, i);
+        }
+      }
+    }
+
     if (chaptersMap.isEmpty) {
       final mockChapters = List.generate(
         details.chapters ?? 24,

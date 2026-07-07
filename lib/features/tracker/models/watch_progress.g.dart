@@ -347,6 +347,95 @@ void _watchProgressAttach(
     IsarCollection<dynamic> col, Id id, WatchProgress object) {
   object.id = id;
 }
+extension WatchProgressQueryWhere on QueryBuilder<WatchProgress, WatchProgress, QWhereClause> {
+  QueryBuilder<WatchProgress, WatchProgress, QAfterWhereClause> animeIdEqualTo(int animeId) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'animeId',
+        value: [animeId],
+      ));
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterWhereClause> animeIdNotEqualTo(int animeId) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'animeId',
+              lower: [],
+              upper: [animeId],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'animeId',
+              lower: [animeId],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'animeId',
+              lower: [animeId],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'animeId',
+              lower: [],
+              upper: [animeId],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterWhereClause> animeIdGreaterThan(
+    int animeId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'animeId',
+        lower: [animeId],
+        includeLower: include,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterWhereClause> animeIdLessThan(
+    int animeId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'animeId',
+        lower: [],
+        upper: [animeId],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterWhereClause> animeIdBetween(
+    int lowerAnimeId,
+    int upperAnimeId, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'animeId',
+        lower: [lowerAnimeId],
+        includeLower: includeLower,
+        upper: [upperAnimeId],
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+}
 
 extension WatchProgressQueryFilter on QueryBuilder<WatchProgress, WatchProgress, QFilterCondition> {
   QueryBuilder<WatchProgress, WatchProgress, QAfterFilterCondition> animeIdEqualTo(int value) {
@@ -354,6 +443,49 @@ extension WatchProgressQueryFilter on QueryBuilder<WatchProgress, WatchProgress,
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'animeId',
         value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterFilterCondition> animeIdGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'animeId',
+        value: value,
+        include: include,
+      ));
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterFilterCondition> animeIdLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        property: r'animeId',
+        value: value,
+        include: include,
+      ));
+    });
+  }
+
+  QueryBuilder<WatchProgress, WatchProgress, QAfterFilterCondition> animeIdBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'animeId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
       ));
     });
   }

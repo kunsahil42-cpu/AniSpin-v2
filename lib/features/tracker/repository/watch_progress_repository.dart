@@ -27,16 +27,20 @@ class WatchProgressRepository {
   }
 
   Future<List<WatchProgress>> getContinueWatching() async {
-    return await _isar.collection<WatchProgress>()
-        .where()
+    final list = await _isar.collection<WatchProgress>()
+        .filter()
+        .animeIdGreaterThan(0)
         .sortByLastWatchedAtDesc()
         .findAll();
+    return list.where((x) => x.romajiTitle.toLowerCase() != 'settings').toList();
   }
 
   Stream<List<WatchProgress>> watchContinueWatching() {
     return _isar.collection<WatchProgress>()
-        .where()
+        .filter()
+        .animeIdGreaterThan(0)
         .sortByLastWatchedAtDesc()
-        .watch(fireImmediately: true);
+        .watch(fireImmediately: true)
+        .map((list) => list.where((x) => x.romajiTitle.toLowerCase() != 'settings').toList());
   }
 }

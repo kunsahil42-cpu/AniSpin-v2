@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../models/manga_model.dart';
 
@@ -21,10 +22,21 @@ class MangaTile extends StatelessWidget {
         },
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: Image.network(
-            manga.imageUrl,
+          child: CachedNetworkImage(
+            imageUrl: manga.imageUrl,
             width: 55,
+            height: 80,
             fit: BoxFit.cover,
+            placeholder: (context, url) => Container(
+              color: Colors.grey.shade900,
+            ),
+            errorWidget: (context, url, error) => Container(
+              color: Colors.grey.shade900,
+              child: const Icon(
+                Icons.broken_image_rounded,
+                color: Colors.white24,
+              ),
+            ),
           ),
         ),
         title: Text(manga.title),

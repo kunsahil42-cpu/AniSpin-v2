@@ -48,25 +48,24 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
   }
 
   int _getActualEpisodesCount() {
-    // 1. If RELEASING and nextAiringEpisode is available
+    // 1. If nextAiringEpisode is available (indicating active airing)
     if (widget.nextAiringEpisode != null) {
       return widget.nextAiringEpisode!.episode - 1;
     }
 
-    // 2. Fallback: Parse streamingEpisodes to find the highest episode number
+    int maxEp = widget.totalEpisodes;
+
+    // 2. Parse streamingEpisodes to see if it lists a higher number
     if (widget.streamingEpisodes.isNotEmpty) {
-      int maxEp = 0;
       for (final ep in widget.streamingEpisodes) {
         final epNum = _extractEpisodeNumber(ep.title, 0);
         if (epNum != null && epNum > maxEp) {
           maxEp = epNum;
         }
       }
-      if (maxEp > 0) return maxEp;
     }
 
-    // 3. Default fallback
-    return widget.totalEpisodes;
+    return maxEp > 0 ? maxEp : 12;
   }
 
   List<({int start, int end})> _getRanges(int actualTotal) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../models/discover_manga_model.dart';
 import 'discover_card.dart';
@@ -22,11 +23,24 @@ class MangaOfDayCard extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              manga.coverImage,
+            child: CachedNetworkImage(
+              imageUrl: manga.coverImage,
               width: 90,
               height: 130,
               fit: BoxFit.cover,
+              placeholder: (context, url) => Container(
+                color: Colors.grey.shade900,
+              ),
+              errorWidget: (context, url, error) => Container(
+                color: Colors.grey.shade900,
+                child: const Center(
+                  child: Icon(
+                    Icons.broken_image_rounded,
+                    color: Colors.white24,
+                    size: 32,
+                  ),
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 16),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../models/discover_anime_model.dart';
 
@@ -27,10 +28,23 @@ class AnimeGridTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: Image.network(
-                anime.coverImage,
+              child: CachedNetworkImage(
+                imageUrl: anime.coverImage,
                 width: double.infinity,
                 fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  color: Colors.grey.shade900,
+                ),
+                errorWidget: (context, url, error) => Container(
+                  color: Colors.grey.shade900,
+                  child: const Center(
+                    child: Icon(
+                      Icons.broken_image_rounded,
+                      color: Colors.white24,
+                      size: 32,
+                    ),
+                  ),
+                ),
               ),
             ),
 

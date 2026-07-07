@@ -50,7 +50,6 @@ class MangaDetailsScreen extends ConsumerWidget {
               slivers: [
                 // ── Banner ──────────────────────────────────────────────────
                 SliverAppBar(
-                  expandedHeight: 240,
                   pinned: true,
                   elevation: 0,
                   backgroundColor: Colors.transparent,
@@ -97,20 +96,23 @@ class MangaDetailsScreen extends ConsumerWidget {
                       ),
                     ),
                   ],
-                  flexibleSpace: FlexibleSpaceBar(
-                    background: AnimeBanner(imageUrl: mangaData.bannerImage),
-                  ),
                 ),
   
                 // ── Content ─────────────────────────────────────────────────
                 SliverToBoxAdapter(
                   child: Transform.translate(
-                    offset: const Offset(0, -80),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
+                    offset: const Offset(0, -56),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        AnimeBanner(imageUrl: mangaData.bannerImage),
+                        Transform.translate(
+                          offset: const Offset(0, -80),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
   
                           // Poster
                           Hero(
@@ -278,7 +280,11 @@ class MangaDetailsScreen extends ConsumerWidget {
                       ), // Column
                     ), // Padding
                   ), // Transform.translate
-                ), // SliverToBoxAdapter
+                  const SizedBox(height: 56),
+                ], // outer Column children
+              ), // outer Column
+            ), // outer Transform.translate
+          ), // SliverToBoxAdapter
   
               ], // slivers
             ), // CustomScrollView

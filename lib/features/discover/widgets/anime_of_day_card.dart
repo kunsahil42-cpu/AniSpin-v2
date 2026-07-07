@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
 import '../models/discover_anime_model.dart';
 import 'discover_card.dart';
 
@@ -21,11 +23,24 @@ class AnimeOfDayCard extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              anime.coverImage,
+            child: CachedNetworkImage(
+              imageUrl: anime.coverImage,
               width: 90,
               height: 130,
               fit: BoxFit.cover,
+              placeholder: (context, url) => Container(
+                color: Colors.grey.shade900,
+              ),
+              errorWidget: (context, url, error) => Container(
+                color: Colors.grey.shade900,
+                child: const Center(
+                  child: Icon(
+                    Icons.broken_image_rounded,
+                    color: Colors.white24,
+                    size: 32,
+                  ),
+                ),
+              ),
             ),
           ),
 
