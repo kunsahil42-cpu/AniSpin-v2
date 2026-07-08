@@ -1,335 +1,293 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../../core/error/app_failure.dart';
+import '../../../core/database/chapter_cache.dart';
 import '../../../core/network/mangadex/mangadex_api.dart';
-import '../../../core/database/translation_cache.dart';
-import '../models/chapter_model.dart';
 import '../models/manga_details_model.dart';
 import '../repository/manga_details_repository.dart';
 
-final mangaDetailsRepositoryProvider =
-    Provider<MangaDetailsRepository>((ref) {
-  return MangaDetailsRepository(
-    dexApi: ref.watch(mangaDexApiProvider),
-  );
+import '../models/chapter_model.dart';
+
+// Repository provider that depends on MangaDexApi
+final mangaDetailsRepositoryProvider = Provider<MangaDetailsRepository>((ref) {
+  final mangaDexApi = ref.read(mangaDexApiProvider);
+  return MangaDetailsRepository(dexApi: mangaDexApi);
 });
 
+// Provider for manga details that returns a Future<MangaDetailsModel>
 final mangaDetailsProvider =
-    FutureProvider.family<MangaDetailsModel, int>(
-  (ref, mangaId) async {
-    final repository = ref.read(
-      mangaDetailsRepositoryProvider,
-    );
+    FutureProvider.family<MangaDetailsModel, int>((ref, mangaId) {
+  final repository = ref.read(mangaDetailsRepositoryProvider);
+  return repository.getMangaDetails(mangaId);
+});
 
-    return repository.getMangaDetails(
-      mangaId,
-    );
-  },
-);
+String _cleanTitle(String title) {
+  String cleaned = title.replaceAll(RegExp(r'\([^)]*\)'), '').replaceAll(RegExp(r'\[[^\]]*\]'), '');
+  cleaned = cleaned.replaceAll(RegExp(r'[:\-!~\?\.]'), ' ');
+  cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return cleaned;
+}
 
-/// Provider to fetch real chapters list from MangaDex, with a graceful fallback to mock chapters if not found.
-final mangaChaptersProvider = FutureProvider.family<List<ChapterModel>, int>(
-  (ref, mangaId) async {
-    final detailsAsync = ref.watch(mangaDetailsProvider(mangaId));
-    final details = detailsAsync.valueOrNull;
-    if (details == null) {
-      return const [];
+class MangaChaptersNotifier extends FamilyAsyncNotifier<List<ChapterModel>, int> {
+  @override
+  FutureOr<List<ChapterModel>> build(int mangaId) async {
+    // 1. Try to load cached chapters first
+    final cached = await ChapterCache.getChapters(mangaId);
+    if (cached != null && cached.isNotEmpty) {
+      // Trigger background update asynchronously
+      _refreshChaptersInBackground(mangaId);
+      return cached;
     }
 
-    final dexApi = ref.read(mangaDexApiProvider);
+    // 2. If no cache, fetch from network
+    return _fetchAndCacheChapters(mangaId);
+  }
+
+  void _refreshChaptersInBackground(int mangaId) {
+    _fetchAndCacheChapters(mangaId).catchError((e) {
+      print('MangaChaptersNotifier: Background refresh failed: $e');
+      return const <ChapterModel>[];
+    });
+  }
+
+  Future<List<ChapterModel>> _fetchAndCacheChapters(int mangaId) async {
+    final chapters = await _fetchFromNetwork(mangaId);
+    await ChapterCache.saveChapters(mangaId, chapters);
+    state = AsyncValue.data(chapters);
+    return chapters;
+  }
+
+  Future<List<ChapterModel>> _fetchFromNetwork(int mangaId) async {
+    final mangaDex = ref.read(mangaDexApiProvider);
     
-    // Find all candidate MangaDex IDs using AniList/MAL details
-    List<String> dexIds = await dexApi.findMangaDexIds(
+    // Resolve MangaDetails first to obtain lookup metadata
+    final details = await ref.read(mangaDetailsProvider(mangaId).future);
+    
+    final Set<String> allDexIds = {};
+
+    // Try 1: Romaji title
+    final romajiIds = await mangaDex.findMangaDexIds(
       title: details.romajiTitle,
       aniListId: details.id,
       malId: details.idMal,
     );
+    allDexIds.addAll(romajiIds);
 
-    if (dexIds.isEmpty && details.englishTitle != null && details.englishTitle!.isNotEmpty) {
-      dexIds = await dexApi.findMangaDexIds(
+    // Try 2: English title fallback
+    if (details.englishTitle != null && details.englishTitle!.isNotEmpty) {
+      final englishIds = await mangaDex.findMangaDexIds(
         title: details.englishTitle!,
         aniListId: details.id,
         malId: details.idMal,
       );
+      allDexIds.addAll(englishIds);
     }
 
-    if (dexIds.isEmpty) {
-      // Fallback: return mock chapters if not found on MangaDex
-      final mockChapters = List.generate(
-        details.chapters ?? 24,
-        (i) => ChapterModel.mock(mangaId, i + 1),
+    // Try 3: Native title fallback (Korean/Japanese/Chinese)
+    if (details.nativeTitle != null && details.nativeTitle!.isNotEmpty) {
+      final nativeIds = await mangaDex.findMangaDexIds(
+        title: details.nativeTitle!,
+        aniListId: details.id,
+        malId: details.idMal,
       );
-      mockChapters.sort((a, b) => a.number.compareTo(b.number));
-      return mockChapters;
+      allDexIds.addAll(nativeIds);
     }
 
-    // Only ever a handful of authoritative (link-matched) candidates; cap the
-    // scan so a fuzzy title fallback returning many IDs can't fan out into
-    // dozens of full feed downloads. This bounds candidate MANGA, never chapters.
-    const int maxCandidates = 6;
-    final candidateIds =
-        dexIds.length > maxCandidates ? dexIds.sublist(0, maxCandidates) : dexIds;
-
-    final allDexIds = List<String>.from(candidateIds);
-    final isColoredMap = <String, bool>{};
-
-    for (final id in candidateIds) {
-      try {
-        final detailsData = await dexApi.getMangaDetails(id);
-        
-        final attrs = detailsData['data']?['attributes'] as Map? ?? {};
-        final titleMap = attrs['title'] as Map? ?? {};
-        final titleStr = (titleMap['en'] ?? titleMap.values.firstOrNull ?? '').toString().toLowerCase();
-        final tagsList = attrs['tags'] as List? ?? [];
-        final isColored = titleStr.contains('colored') ||
-            titleStr.contains('coloured') ||
-            tagsList.any((tag) {
-              if (tag is! Map) return false;
-              final nameMap = tag['attributes']?['name'] as Map? ?? {};
-              final enName = (nameMap['en'] ?? '').toString().toLowerCase();
-              return enName.contains('colored') || enName.contains('coloured');
-            });
-        
-        isColoredMap[id] = isColored;
-
-        final relationships = detailsData['data']?['relationships'] as List? ?? [];
-        for (final rel in relationships) {
-          if (rel is Map && rel['type'] == 'manga') {
-            final relType = rel['related'] as String?;
-            if (relType == 'colored' || relType == 'monochrome') {
-              final relatedId = rel['id'] as String?;
-              if (relatedId != null && !allDexIds.contains(relatedId)) {
-                allDexIds.add(relatedId);
-              }
-            }
-          }
-        }
-      } catch (_) {}
-    }
-
-    for (final id in allDexIds) {
-      if (!isColoredMap.containsKey(id)) {
-        try {
-          final detailsData = await dexApi.getMangaDetails(id);
-          final attrs = detailsData['data']?['attributes'] as Map? ?? {};
-          final titleMap = attrs['title'] as Map? ?? {};
-          final titleStr = (titleMap['en'] ?? titleMap.values.firstOrNull ?? '').toString().toLowerCase();
-          final tagsList = attrs['tags'] as List? ?? [];
-          final isColored = titleStr.contains('colored') ||
-              titleStr.contains('coloured') ||
-              tagsList.any((tag) {
-                if (tag is! Map) return false;
-                final nameMap = tag['attributes']?['name'] as Map? ?? {};
-                final enName = (nameMap['en'] ?? '').toString().toLowerCase();
-                return enName.contains('colored') || enName.contains('coloured');
-              });
-          isColoredMap[id] = isColored;
-        } catch (_) {
-          isColoredMap[id] = false;
-        }
+    // Try 4: Cleaned Romaji title fallback
+    if (allDexIds.isEmpty) {
+      final cleanedRomaji = _cleanTitle(details.romajiTitle);
+      if (cleanedRomaji != details.romajiTitle && cleanedRomaji.isNotEmpty) {
+        final cleanedIds = await mangaDex.findMangaDexIds(
+          title: cleanedRomaji,
+          aniListId: details.id,
+          malId: details.idMal,
+        );
+        allDexIds.addAll(cleanedIds);
       }
     }
 
-    final chaptersMap = <int, ChapterModel>{};
-    final externalByNum = <int, bool>{};
-    String? selectedDexId;
+    // Try 5: Cleaned English title fallback
+    if (details.englishTitle != null && details.englishTitle!.isNotEmpty) {
+      final cleanedEnglish = _cleanTitle(details.englishTitle!);
+      if (cleanedEnglish != details.englishTitle && cleanedEnglish.isNotEmpty) {
+        final cleanedIds = await mangaDex.findMangaDexIds(
+          title: cleanedEnglish,
+          aniListId: details.id,
+          malId: details.idMal,
+        );
+        allDexIds.addAll(cleanedIds);
+      }
+    }
+
+    // Try 6: Cleaned Native title fallback
+    if (details.nativeTitle != null && details.nativeTitle!.isNotEmpty) {
+      final cleanedNative = _cleanTitle(details.nativeTitle!);
+      if (cleanedNative != details.nativeTitle && cleanedNative.isNotEmpty) {
+        final cleanedIds = await mangaDex.findMangaDexIds(
+          title: cleanedNative,
+          aniListId: details.id,
+          malId: details.idMal,
+        );
+        allDexIds.addAll(cleanedIds);
+      }
+    }
+    
+    // In-memory registered mapping fallback
+    if (allDexIds.isEmpty) {
+      final cachedUuid = MangaDexApi.idToUuid(mangaId);
+      if (cachedUuid != null) {
+        allDexIds.add(cachedUuid);
+      }
+    }
+
+    if (allDexIds.isEmpty) {
+      print('mangaChaptersProvider: Failed to resolve any MangaDex IDs for mangaId: $mangaId');
+      return const [];
+    }
+
+    print('mangaChaptersProvider: Resolved MangaDex IDs: $allDexIds for mangaId: $mangaId');
+
+    final List<ChapterModel> allChapters = [];
 
     for (final dexId in allDexIds) {
       try {
-        final feed = await dexApi.getMangaFeed(dexId, const {'translatedLanguage[]': null});
-        final isColored = isColoredMap[dexId] ?? false;
-
-        for (final item in feed) {
-          final id = item['id'] as String;
-          final attrs = item['attributes'] as Map<String, dynamic>? ?? {};
-          final chStr = attrs['chapter'] as String? ?? '';
-          if (chStr.isEmpty) continue; // Skip chapters without numbers
-
-          final externalUrl = attrs['externalUrl'] as String?;
-          final isExternal = externalUrl != null;
-
-          int? parsed = int.tryParse(chStr);
-          if (parsed == null) {
-            final d = double.tryParse(chStr);
-            if (d != null) {
-              parsed = d.toInt();
-            }
-          }
-          final chNum = parsed ?? 0;
-          final rawTitle = attrs['title'] as String? ?? '';
-          final title = rawTitle.isNotEmpty
-              ? 'Chapter $chNum — $rawTitle'
-              : 'Chapter $chNum';
-
-          final publishAtStr = attrs['publishAt'] as String? ?? '';
-          String dateStr = '';
-          if (publishAtStr.isNotEmpty) {
-            try {
-              final dt = DateTime.parse(publishAtStr);
-              dateStr = '${dt.day}/${dt.month}/${dt.year}';
-            } catch (_) {}
-          }
-
-          final lang = (attrs['translatedLanguage'] as String? ?? 'en').toUpperCase();
-
-          String scanGroup = 'MangaDex';
-          final relationships = item['relationships'] as List? ?? const [];
+        final feed = await mangaDex.getMangaFeed(dexId, {
+          'translatedLanguage[]': null,
+        });
+        
+        final List<ChapterModel> mapped = feed.map((item) {
+          final map = item as Map<String, dynamic>;
+          final id = map['id'] as String?;
+          final attrs = map['attributes'] as Map<String, dynamic>? ?? {};
+          final chStr = attrs['chapter'] as String? ?? '0';
+          final number = double.tryParse(chStr)?.toInt() ?? 0;
+          final title = attrs['title'] as String? ?? '';
+          final language = attrs['translatedLanguage'] as String? ?? 'EN';
+          
+          String scanGroup = 'Unknown Group';
+          final relationships = map['relationships'] as List? ?? [];
           for (final rel in relationships) {
             if (rel is Map && rel['type'] == 'scanlation_group') {
               final relAttrs = rel['attributes'] as Map?;
-              final name = relAttrs?['name'];
-              if (name is String && name.isNotEmpty) {
-                scanGroup = name;
+              if (relAttrs != null && relAttrs['name'] != null) {
+                scanGroup = relAttrs['name'].toString();
                 break;
               }
             }
           }
 
-          final finalColored = isColored ||
-              scanGroup.toLowerCase().contains('color') ||
-              scanGroup.toLowerCase().contains('coloured');
+          final publishAtStr = attrs['publishAt'] as String? ?? '';
+          String dateStr = '';
+          if (publishAtStr.isNotEmpty) {
+            try {
+              final dateTime = DateTime.parse(publishAtStr);
+              final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+              dateStr = '${months[dateTime.month - 1]} ${dateTime.day}, ${dateTime.year}';
+            } catch (_) {
+              dateStr = publishAtStr;
+            }
+          }
 
-          final chapterModel = ChapterModel(
+          final extUrl = attrs['externalUrl'] as String?;
+          final isExternal = extUrl != null && extUrl.isNotEmpty;
+
+          // Detect if chapter is colored
+          final titleLower = title.toLowerCase();
+          final groupLower = scanGroup.toLowerCase();
+          final isColored = titleLower.contains('colored') ||
+                            titleLower.contains('color') ||
+                            groupLower.contains('colored') ||
+                            groupLower.contains('color') ||
+                            details.romajiTitle.toLowerCase().contains('colored');
+
+          // Detect if chapter is auto-translated
+          final isAutoTranslate = titleLower.contains('auto') ||
+                                  titleLower.contains('machine') ||
+                                  titleLower.contains('mtl') ||
+                                  groupLower.contains('mtl') ||
+                                  groupLower.contains('machine');
+
+          return ChapterModel(
             id: id,
-            number: chNum,
-            title: title,
+            number: number,
+            title: title.isEmpty ? 'Chapter $number' : title,
             scanGroup: scanGroup,
             date: dateStr,
-            language: lang,
+            language: language.toUpperCase(),
             pages: const [],
-            isAutoTranslate: lang.toUpperCase() != 'EN',
-            isColored: finalColored,
+            isExternal: isExternal,
+            externalUrl: extUrl,
+            isColored: isColored,
+            isAutoTranslate: isAutoTranslate,
+            alternatives: const [],
           );
+        }).toList();
 
-          final existing = chaptersMap[chNum];
-          final existingExternal = externalByNum[chNum] ?? false;
-
-          if (existing == null ||
-              _shouldReplace(existing, existingExternal, chapterModel, isExternal)) {
-            chaptersMap[chNum] = chapterModel;
-            externalByNum[chNum] = isExternal;
-            selectedDexId = dexId;
-          }
-        }
-      } catch (_) {}
-    }
-
-    // Fill in any gaps from 1 to details.chapters (if details.chapters is available)
-    final totalCh = details.chapters ?? 0;
-    if (totalCh > 0) {
-      for (int i = 1; i <= totalCh; i++) {
-        if (!chaptersMap.containsKey(i)) {
-          chaptersMap[i] = ChapterModel.mock(mangaId, i);
-        }
+        allChapters.addAll(mapped);
+      } catch (e) {
+        print('mangaChaptersProvider: Failed to fetch feed for dexId: $dexId. Error: $e');
       }
     }
 
-    if (chaptersMap.isEmpty) {
-      final mockChapters = List.generate(
-        details.chapters ?? 24,
-        (i) => ChapterModel.mock(mangaId, i + 1),
+    // Group chapters by number to select the best available version
+    final Map<int, List<ChapterModel>> grouped = {};
+    for (final chapter in allChapters) {
+      grouped.putIfAbsent(chapter.number, () => []).add(chapter);
+    }
+
+    final List<ChapterModel> selectedChapters = [];
+    final languagePriority = ['PT', 'ES', 'JA', 'FR', 'DE', 'ZH', 'KO', 'RU', 'IT'];
+
+    for (final entry in grouped.entries) {
+      final list = entry.value;
+
+      final versions = List<ChapterModel>.from(list);
+      versions.sort((a, b) {
+        // 1. Prefer internal versions with actual pages
+        if (!a.isExternal && b.isExternal) return -1;
+        if (a.isExternal && !b.isExternal) return 1;
+
+        // 2. Prefer English
+        final aIsEn = a.language == 'EN';
+        final bIsEn = b.language == 'EN';
+        if (aIsEn && !bIsEn) return -1;
+        if (!aIsEn && bIsEn) return 1;
+
+        // 3. Language priority
+        final aIndex = languagePriority.indexOf(a.language);
+        final bIndex = languagePriority.indexOf(b.language);
+        if (aIndex != -1 && bIndex != -1) return aIndex.compareTo(bIndex);
+        if (aIndex != -1) return -1;
+        if (bIndex != -1) return 1;
+
+        return a.language.compareTo(b.language);
+      });
+
+      final primary = versions.first;
+      final otherAlternatives = versions.skip(1).toList();
+
+      selectedChapters.add(
+        ChapterModel(
+          id: primary.id,
+          number: primary.number,
+          title: primary.title,
+          scanGroup: primary.scanGroup,
+          date: primary.date,
+          language: primary.language,
+          pages: primary.pages,
+          isExternal: primary.isExternal,
+          externalUrl: primary.externalUrl,
+          isColored: primary.isColored,
+          isAutoTranslate: primary.isAutoTranslate,
+          alternatives: otherAlternatives,
+        ),
       );
-      mockChapters.sort((a, b) => a.number.compareTo(b.number));
-      return mockChapters;
     }
 
-    if (selectedDexId != null) {
-      MangaDexApi.uuidToId(selectedDexId);
-      MangaDexApi.registerMapping(details.id, selectedDexId);
-    }
-
-    final selectedChapters = chaptersMap.values.toList();
-    selectedChapters.sort((a, b) => a.number.compareTo(b.number));
     return selectedChapters;
   }
-);
-
-double _getChapterScore(ChapterModel ch, bool isExternal) {
-  final double hostPenalty = isExternal ? 100.0 : 0.0;
-  final bool isEnglish = ch.language.toUpperCase() == 'EN';
-  
-  int typePriority;
-  if (ch.isColored && isEnglish) {
-    typePriority = 1;
-  } else if (ch.isColored && !isEnglish) {
-    typePriority = 2;
-  } else if (!ch.isColored && isEnglish) {
-    typePriority = 3;
-  } else {
-    typePriority = 4;
-  }
-
-  int langPriority;
-  final l = ch.language.toUpperCase();
-  if (l == 'EN') {
-    langPriority = 0;
-  } else if (l == 'JA') {
-    langPriority = 1;
-  } else if (l == 'KO') {
-    langPriority = 2;
-  } else if (l == 'ZH' || l.startsWith('ZH-')) {
-    langPriority = 3;
-  } else {
-    langPriority = 4;
-  }
-
-  return hostPenalty + (typePriority * 10) + langPriority;
 }
 
-bool _shouldReplace(ChapterModel existing, bool existingExternal, ChapterModel candidate, bool candidateExternal) {
-  final existingScore = _getChapterScore(existing, existingExternal);
-  final candidateScore = _getChapterScore(candidate, candidateExternal);
-  return candidateScore < existingScore;
-}
-
-/// Argument helper for chapter pages provider
-class ChapterPagesArg {
-  final int mangaId;
-  final int chapterNumber;
-
-  ChapterPagesArg({
-    required this.mangaId,
-    required this.chapterNumber,
-  });
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ChapterPagesArg &&
-          runtimeType == other.runtimeType &&
-          mangaId == other.mangaId &&
-          chapterNumber == other.chapterNumber;
-
-  @override
-  int get hashCode => mangaId.hashCode ^ chapterNumber.hashCode;
-}
-
-/// Provider to fetch pages list for a specific chapter
-final mangaChapterPagesProvider = FutureProvider.autoDispose.family<List<String>, ChapterPagesArg>(
-  (ref, arg) async {
-    final chaptersAsync = await ref.watch(mangaChaptersProvider(arg.mangaId).future);
-    
-    // Find the chapter with the matching number
-    final chapterIndex = chaptersAsync.indexWhere((c) => c.number == arg.chapterNumber);
-    if (chapterIndex == -1) {
-      throw AppFailure.notFound('Chapter ${arg.chapterNumber} not found.');
-    }
-    
-    final chapter = chaptersAsync[chapterIndex];
-
-    if (chapter.id != null) {
-      if (chapter.isAutoTranslate) {
-        final cached = await TranslationCache().get(chapter.id!);
-        if (cached != null) {
-          return cached;
-        }
-      }
-      final dexApi = ref.read(mangaDexApiProvider);
-      return await dexApi.getChapterPages(chapter.id!);
-    }
-
-    // Fallback to mock pages ONLY if the chapter has no MangaDex ID (e.g. mock manga)
-    final mockChapter = ChapterModel.mock(arg.mangaId, arg.chapterNumber);
-    return mockChapter.pages;
-  }
-);
+final mangaChaptersProvider =
+    AsyncNotifierProvider.family<MangaChaptersNotifier, List<ChapterModel>, int>(() {
+  return MangaChaptersNotifier();
+});

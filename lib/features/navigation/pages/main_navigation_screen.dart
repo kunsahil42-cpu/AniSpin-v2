@@ -24,12 +24,19 @@ class MainNavigationScreen extends ConsumerWidget {
       SettingsScreen(),
     ];
 
-    return Scaffold(
-      body: IndexedStack(
-        index: currentIndex,
-        children: screens,
+    return PopScope(
+      canPop: currentIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        ref.read(navigationIndexProvider.notifier).state = 0;
+      },
+      child: Scaffold(
+        body: IndexedStack(
+          index: currentIndex,
+          children: screens,
+        ),
+        bottomNavigationBar: const BottomNavBar(),
       ),
-      bottomNavigationBar: const BottomNavBar(),
     );
   }
 }

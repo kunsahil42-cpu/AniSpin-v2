@@ -397,6 +397,7 @@ class MockDataHelper {
       coverImage: a.coverImage,
       averageScore: a.averageScore,
       episodes: a.episodes,
+      genres: a.genres,
     )).toList();
   }
 
@@ -419,6 +420,7 @@ class MockDataHelper {
       coverImage: a.coverImage,
       bannerImage: a.bannerImage,
       averageScore: a.averageScore,
+      popularity: a.popularity,
       episodes: a.episodes,
       genres: a.genres,
       description: a.description,
@@ -434,6 +436,7 @@ class MockDataHelper {
       coverImage: m.coverImage,
       bannerImage: m.bannerImage,
       averageScore: m.averageScore,
+      popularity: m.popularity,
       genres: m.genres,
       description: m.description,
       status: m.status,
@@ -452,6 +455,7 @@ class MockDataHelper {
           score: a.averageScore,
           episodes: a.episodes,
           status: a.status,
+          genres: a.genres,
         ))
         .toList();
   }
@@ -468,6 +472,7 @@ class MockDataHelper {
           score: m.averageScore,
           chapters: m.chapters,
           status: m.status,
+          genres: m.genres,
         ))
         .toList();
   }

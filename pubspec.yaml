@@ -49,6 +49,8 @@ dependencies:
   path_provider: ^2.1.5
   path: ^1.9.1
   video_player: ^2.8.6
+  wakelock_plus: ^1.1.4
+  crypto: ^3.0.3  # Added for SHA256 hashing
 
 dev_dependencies:
   flutter_test:

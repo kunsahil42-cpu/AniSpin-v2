@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../tracker/providers/tracker_providers.dart';
 import '../models/chapter_model.dart';
 import '../providers/manga_details_provider.dart';
@@ -46,10 +47,7 @@ class _ChapterListState extends ConsumerState<ChapterList> {
     final chaptersAsync = ref.watch(mangaChaptersProvider(widget.mangaId));
 
     return chaptersAsync.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.all(24.0),
-        child: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () => const _SkeletonChapters(),
       error: (err, stack) => const Padding(
         padding: EdgeInsets.all(16.0),
         child: Center(
@@ -281,6 +279,9 @@ class _ChapterGroupTile extends StatelessWidget {
     final containsCurrent =
         currentChapter >= group.start && currentChapter <= group.end;
 
+    final hasEnglish = group.chapters.any((c) => c.language == 'EN');
+    final nonEnglishCount = group.chapters.where((c) => c.language != 'EN').length;
+
     return Card(
       elevation: expanded ? 3 : 0,
       color: expanded
@@ -301,9 +302,9 @@ class _ChapterGroupTile extends StatelessWidget {
           InkWell(
             onTap: onToggle,
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   AnimatedRotation(
                     turns: expanded ? 0.5 : 0.0,
@@ -316,25 +317,73 @@ class _ChapterGroupTile extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      group.label,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: expanded ? primaryColor : null,
-                      ),
-                    ),
-                  ),
-                  if (containsCurrent) ...[
-                    Icon(Icons.bookmark_rounded,
-                        size: 16, color: primaryColor),
-                    const SizedBox(width: 6),
-                  ],
-                  Text(
-                    '${group.chapters.length}',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                      fontWeight: FontWeight.w600,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                group.label,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: expanded ? primaryColor : null,
+                                ),
+                              ),
+                            ),
+                            if (containsCurrent) ...[
+                              Icon(Icons.bookmark_rounded,
+                                  size: 16, color: primaryColor),
+                              const SizedBox(width: 6),
+                            ],
+                            Text(
+                              '${group.chapters.length} Chapters',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            if (hasEnglish) ...[
+                              const Text(
+                                '🟢 English Available',
+                                style: TextStyle(
+                                  color: Color(0xFF4CAF50),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (nonEnglishCount > 0) ...[
+                                Text(
+                                  '•  🟠 $nonEnglishCount Non-English',
+                                  style: const TextStyle(
+                                    color: Color(0xFFFF9800),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ] else ...[
+                              const Text(
+                                '🟠 Non-English Only',
+                                style: TextStyle(
+                                  color: Color(0xFFFF9800),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -390,34 +439,29 @@ class _ChapterRow extends StatelessWidget {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
 
-    final String badgeText;
-    final Color badgeColor;
-    final List<Color> gradientColors;
-    final IconData badgeIcon;
+    final languageNames = {
+      'EN': 'English',
+      'JA': 'Japanese',
+      'ES': 'Spanish',
+      'FR': 'French',
+      'ZH': 'Chinese',
+      'KO': 'Korean',
+      'DE': 'German',
+      'IT': 'Italian',
+      'PT': 'PT-BR',
+      'RU': 'Russian',
+      'AR': 'Arabic',
+      'HI': 'Hindi',
+    };
+    final langName = languageNames[chapter.language.toUpperCase()] ?? chapter.language;
 
-    if (chapter.isColored && !chapter.isAutoTranslate) {
-      badgeText = 'Colored English';
-      badgeColor = const Color(0xFF4CAF50);
-      gradientColors = [const Color(0xFF4CAF50), const Color(0xFF2E7D32)];
-      badgeIcon = Icons.check_circle_rounded;
-    } else if (chapter.isColored && chapter.isAutoTranslate) {
-      badgeText = 'Colored (Auto Translated)';
-      badgeColor = const Color(0xFF7C4DFF);
-      gradientColors = [const Color(0xFF7C4DFF), const Color(0xFF651FFF)];
-      badgeIcon = Icons.palette_rounded;
-    } else if (!chapter.isColored && !chapter.isAutoTranslate) {
-      badgeText = 'Black & White English';
-      badgeColor = const Color(0xFF757575);
-      gradientColors = [const Color(0xFF757575), const Color(0xFF424242)];
-      badgeIcon = Icons.book_rounded;
-    } else {
-      badgeText = 'Black & White (Auto Translated)';
-      badgeColor = const Color(0xFFFF9800);
-      gradientColors = [const Color(0xFFFF9800), const Color(0xFFF57C00)];
-      badgeIcon = Icons.translate_rounded;
-    }
+    const String showText = '✓ Show';
 
-    return Card(
+    final String badgeText = langName;
+
+    final isEnglish = chapter.language.toUpperCase() == 'EN';
+
+    final cardWidget = Card(
       elevation: isCurrent ? 4 : 0,
       color: isCurrent
           ? theme.colorScheme.primary.withValues(alpha: 0.08)
@@ -432,20 +476,16 @@ class _ChapterRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             children: [
-              // Read status circle
+              // Language indicator dot (Green for English, Orange for Non-English)
               Container(
                 width: 10,
                 height: 10,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isCurrent
-                      ? primaryColor
-                      : isRead
-                          ? Colors.grey.withValues(alpha: 0.4)
-                          : Colors.green, // Unread is bright green
+                  color: isEnglish ? const Color(0xFF4CAF50) : const Color(0xFFFF9800),
                 ),
               ),
               const SizedBox(width: 14),
@@ -463,19 +503,15 @@ class _ChapterRow extends StatelessWidget {
                         color: isCurrent ? primaryColor : null,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: gradientColors),
+                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(6),
-                        boxShadow: [
-                          BoxShadow(
-                            color: badgeColor.withValues(alpha: 0.3),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                        border: Border.all(
+                          color: theme.colorScheme.outline.withValues(alpha: 0.08),
+                        ),
                       ),
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
@@ -483,12 +519,17 @@ class _ChapterRow extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              badgeIcon,
-                              size: 10,
-                              color: Colors.white,
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: chapter.language.toUpperCase() == 'EN'
+                                    ? const Color(0xFF4CAF50)
+                                    : const Color(0xFFFF9800),
+                              ),
                             ),
-                            const SizedBox(width: 4),
+                            const SizedBox(width: 6),
                             Text(
                               badgeText,
                               style: theme.textTheme.labelSmall?.copyWith(
@@ -500,7 +541,7 @@ class _ChapterRow extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         Flexible(
@@ -533,16 +574,20 @@ class _ChapterRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // Language Tag
+              // Language Tag / Show Button
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(6),
+                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: Text(
-                  chapter.language,
+                  showText,
                   style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.primary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -550,6 +595,67 @@ class _ChapterRow extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+
+    if (isRead) {
+      return Opacity(
+        opacity: 0.6,
+        child: cardWidget,
+      );
+    }
+    return cardWidget;
+  }
+}
+
+// ==========================================================================
+// SHIMMER SKELETON LOADER FOR CHAPTERS LIST
+// ==========================================================================
+
+class _SkeletonChapters extends StatelessWidget {
+  const _SkeletonChapters();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    final baseColor = isDark ? Colors.grey[900]! : Colors.grey[300]!;
+    final highlightColor = isDark ? Colors.grey[800]! : Colors.grey[100]!;
+
+    return Shimmer.fromColors(
+      baseColor: baseColor,
+      highlightColor: highlightColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Container(
+              height: 24,
+              width: 120,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Column(
+              children: List.generate(4, (index) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Container(
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              )),
+            ),
+          ),
+        ],
       ),
     );
   }

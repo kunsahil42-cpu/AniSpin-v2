@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import '../../tracker/models/watch_progress.dart';
@@ -58,6 +59,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
   bool _initialized = false;
   bool _showControls = true;
   bool _locked = false;
+  bool _wakelockEnabled = false;
   
   static const _pipChannel = MethodChannel('com.anispin.video_player/pip');
   bool _isInPip = false;
@@ -152,6 +154,16 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
     }
   }
 
+  Future<void> _setWakelock(bool enable) async {
+    if (_wakelockEnabled == enable) return;
+    _wakelockEnabled = enable;
+    try {
+      await WakelockPlus.toggle(enable: enable);
+    } catch (e) {
+      debugPrint('Error toggling wakelock: $e');
+    }
+  }
+
   void _enterTrueFullscreen() {
     setState(() {
       _isTrueFullscreen = true;
@@ -187,6 +199,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
 
   @override
   void dispose() {
+    _setWakelock(false);
     WidgetsBinding.instance.removeObserver(this);
     _pipChannel.invokeMethod('setPlayerActive', {'active': false});
     _controlsTimer?.cancel();
@@ -361,6 +374,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
     if (_controller != null) {
       _controller!.removeListener(_videoListener);
       await _controller!.dispose();
+      _setWakelock(false);
     }
 
     final playableUrl = await _M3u8Parser.getSelectedQualityUrl(
@@ -403,6 +417,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
       _startControlsTimer();
     } catch (e) {
       debugPrint('Error initializing video player: $e');
+      _setWakelock(false);
       if (mounted) {
         setState(() {
           _initialized = false;
@@ -414,6 +429,9 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
 
   void _videoListener() {
     if (_controller == null) return;
+
+    final isPlaying = _controller!.value.isPlaying;
+    _setWakelock(isPlaying);
 
     // Trigger Watch Progress Save
     final currentPos = _controller!.value.position.inMilliseconds;

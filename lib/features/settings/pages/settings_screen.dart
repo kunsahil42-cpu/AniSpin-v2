@@ -10,7 +10,6 @@ import 'package:isar/isar.dart';
 import '../models/app_settings.dart';
 import '../providers/settings_provider.dart';
 import '../../../core/database/isar_service.dart';
-import '../../../core/database/translation_cache.dart';
 import '../../tracker/providers/tracker_providers.dart';
 import '../../tracker/models/watch_progress.dart';
 import '../../tracker/models/reading_progress.dart';
@@ -72,6 +71,16 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const MangaSettingsPage()),
+                ),
+              ),
+              _buildMenuTile(
+                context,
+                icon: Icons.filter_alt_outlined,
+                title: "Content Filters",
+                subtitle: "Manage blocked genres",
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ContentFiltersSettingsPage()),
                 ),
               ),
             ],
@@ -631,11 +640,11 @@ class MangaSettingsPage extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Reading Direction", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  Text("Reading Mode", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<ReadingDirectionOption>(
                     initialValue: settings.readingDirection,
-                    decoration: const InputDecoration(labelText: "Scroll Orientation"),
+                    decoration: const InputDecoration(labelText: "Reading Mode"),
                     items: ReadingDirectionOption.values.map((dir) {
                       final label = dir.name[0].toUpperCase() + dir.name.substring(1);
                       return DropdownMenuItem(value: dir, child: Text(label));
@@ -1252,13 +1261,26 @@ class CacheManager {
   }
 
   static Future<double> getMangaCacheSize() async {
+    double size = 0.0;
+    
+    // 1. Translation cache
     final tempDir = await getTemporaryDirectory();
     final transCacheFile = File('${tempDir.path}/translation_cache.json');
     if (await transCacheFile.exists()) {
       final len = await transCacheFile.length();
-      return len / (1024 * 1024); // MB
+      size += len;
     }
-    return 0.0;
+    
+    // 2. Chapter cache
+    try {
+      final docsDir = await getApplicationDocumentsDirectory();
+      final cacheDir = Directory('${docsDir.path}/chapter_cache');
+      if (await cacheDir.exists()) {
+        size += await _getDirSize(cacheDir);
+      }
+    } catch (_) {}
+    
+    return size / (1024 * 1024); // MB
   }
 
   static Future<void> clearImageCache() async {
@@ -1282,7 +1304,13 @@ class CacheManager {
   }
 
   static Future<void> clearMangaCache() async {
-    await TranslationCache().clear();
+    try {
+      final docsDir = await getApplicationDocumentsDirectory();
+      final cacheDir = Directory('${docsDir.path}/chapter_cache');
+      if (await cacheDir.exists()) {
+        await cacheDir.delete(recursive: true);
+      }
+    } catch (_) {}
   }
 
   static Future<int> _getDirSize(Directory dir) async {
@@ -1517,5 +1545,319 @@ class BackupService {
 
     ref.invalidate(continueWatchingProvider);
     ref.invalidate(continueReadingProvider);
+  }
+}
+
+// ==========================================================================
+// CONTENT FILTERS SUB-PAGE
+// ==========================================================================
+
+class ContentFiltersSettingsPage extends ConsumerStatefulWidget {
+  const ContentFiltersSettingsPage({super.key});
+
+  @override
+  ConsumerState<ContentFiltersSettingsPage> createState() => _ContentFiltersSettingsPageState();
+}
+
+class _ContentFiltersSettingsPageState extends ConsumerState<ContentFiltersSettingsPage> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+
+  static const List<String> _allGenres = [
+    "Action",
+    "Adult",
+    "Adventure",
+    "Avant Garde",
+    "Boys Love",
+    "Comedy",
+    "Crime",
+    "Demons",
+    "Drama",
+    "Ecchi",
+    "Fantasy",
+    "Girls Love",
+    "Gourmet",
+    "Harem",
+    "Hentai",
+    "Historical",
+    "Horror",
+    "Iyashikei",
+    "Isekai",
+    "Josei",
+    "Kids",
+    "Magic",
+    "Magical Girls",
+    "Mahou Shoujo",
+    "Martial Arts",
+    "Mature",
+    "Mecha",
+    "Medical",
+    "Military",
+    "Music",
+    "Mystery",
+    "Parody",
+    "Philosophical",
+    "Police",
+    "Psychological",
+    "Reverse Harem",
+    "Romance",
+    "School",
+    "Sci-Fi",
+    "Seinen",
+    "Shoujo",
+    "Shoujo Ai",
+    "Shounen",
+    "Shounen Ai",
+    "Slice of Life",
+    "Smut",
+    "Space",
+    "Sports",
+    "Super Power",
+    "Superhero",
+    "Supernatural",
+    "Suspense",
+    "Thriller",
+    "Tragedy",
+    "Vampire",
+    "Wuxia",
+  ];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final settings = ref.watch(settingsNotifierProvider);
+    final blockedGenres = settings.blockedGenres;
+    final notifier = ref.read(settingsNotifierProvider.notifier);
+
+    final filteredGenres = _allGenres
+        .where((genre) => genre.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("🚫 Blocked Genres"),
+        centerTitle: false,
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Genres selected here will not appear in Home, Discover, Search, Recommendations, Trending, Continue Watching, Continue Reading, Related Anime, Related Manga, or Notifications.",
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _searchController,
+                  onChanged: (val) {
+                    setState(() {
+                      _searchQuery = val;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: "Search genres...",
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear_rounded),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _searchQuery = "";
+                              });
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.15),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(
+                        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(
+                        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(
+                        color: theme.colorScheme.primary,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: Row(
+                    children: [
+                      FilledButton.tonalIcon(
+                        onPressed: () {
+                          notifier.setBlockedGenres(List<String>.from(_allGenres));
+                        },
+                        icon: const Icon(Icons.select_all_rounded, size: 18),
+                        label: const Text("Select All"),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.tonalIcon(
+                        onPressed: () {
+                          notifier.setBlockedGenres(const []);
+                        },
+                        icon: const Icon(Icons.clear_all_rounded, size: 18),
+                        label: const Text("Clear All"),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.tonalIcon(
+                        onPressed: () {
+                          notifier.setBlockedGenres(const ["Adult", "Ecchi", "Hentai", "Smut"]);
+                        },
+                        icon: const Icon(Icons.restore_rounded, size: 18),
+                        label: const Text("Reset to Default"),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ).animate().fadeIn(duration: 400.ms),
+          const Divider(),
+          Expanded(
+            child: filteredGenres.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.search_off_rounded,
+                          size: 64,
+                          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          "No genres found matching \"$_searchQuery\"",
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ).animate().fadeIn(duration: 300.ms)
+                : GridView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    physics: const BouncingScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: 3.5,
+                    ),
+                    itemCount: filteredGenres.length,
+                    itemBuilder: (context, index) {
+                      final genre = filteredGenres[index];
+                      final isBlocked = blockedGenres.contains(genre);
+                      return _buildGenreCard(context, genre, isBlocked, blockedGenres, notifier, theme, index);
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGenreCard(
+    BuildContext context,
+    String genre,
+    bool isBlocked,
+    List<String> blockedGenres,
+    SettingsNotifier notifier,
+    ThemeData theme,
+    int index,
+  ) {
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      color: isBlocked
+          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.12)
+          : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.15),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isBlocked
+              ? theme.colorScheme.primary.withValues(alpha: 0.3)
+              : theme.colorScheme.outlineVariant.withValues(alpha: 0.15),
+        ),
+      ),
+      child: InkWell(
+        onTap: () {
+          final newBlocked = List<String>.from(blockedGenres);
+          if (isBlocked) {
+            newBlocked.remove(genre);
+          } else {
+            newBlocked.add(genre);
+          }
+          notifier.setBlockedGenres(newBlocked);
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+          child: Row(
+            children: [
+              Checkbox(
+                value: isBlocked,
+                activeColor: theme.colorScheme.primary,
+                onChanged: (val) {
+                  final newBlocked = List<String>.from(blockedGenres);
+                  if (isBlocked) {
+                    newBlocked.remove(genre);
+                  } else {
+                    newBlocked.add(genre);
+                  }
+                  notifier.setBlockedGenres(newBlocked);
+                },
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  genre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: isBlocked ? FontWeight.bold : FontWeight.normal,
+                    color: isBlocked ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ).animate().fadeIn(duration: 250.ms, delay: (10 * (index % 10)).ms);
   }
 }

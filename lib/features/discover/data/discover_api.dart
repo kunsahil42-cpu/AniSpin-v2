@@ -2,6 +2,7 @@ import 'package:graphql_flutter/graphql_flutter.dart';
 
 import '../../../core/network/graphql_service.dart';
 import '../../../core/network/queries/discover_queries.dart';
+import '../../../core/network/queries/discover_filter_queries.dart';
 
 class DiscoverApi {
   Future<QueryResult> getAnimeOfTheDay(int page) async {
@@ -77,6 +78,71 @@ class DiscoverApi {
         variables: {
           'page': page,
         },
+      ),
+    );
+  }
+
+  Future<QueryResult> getRandomManga(int page) async {
+    return GraphQLService.client.query(
+      QueryOptions(
+        document: gql(DiscoverQueries.randomManga),
+        variables: {
+          'page': page,
+        },
+      ),
+    );
+  }
+
+  Future<QueryResult> getTrendingManga(int page) async {
+    return GraphQLService.client.query(
+      QueryOptions(
+        document: gql(DiscoverQueries.trendingManga),
+        variables: {
+          'page': page,
+        },
+      ),
+    );
+  }
+
+  Future<QueryResult> getHiddenGemsManga(int page) async {
+    return GraphQLService.client.query(
+      QueryOptions(
+        document: gql(DiscoverQueries.hiddenGemsManga),
+        variables: {
+          'page': page,
+        },
+      ),
+    );
+  }
+
+  Future<QueryResult> getTopRatedManga(int page) async {
+    return GraphQLService.client.query(
+      QueryOptions(
+        document: gql(DiscoverQueries.topRatedManga),
+        variables: {
+          'page': page,
+        },
+      ),
+    );
+  }
+
+  Future<QueryResult> getAiringManga(int page) async {
+    return GraphQLService.client.query(
+      QueryOptions(
+        document: gql(DiscoverQueries.airingManga),
+        variables: {
+          'page': page,
+        },
+      ),
+    );
+  }
+
+  Future<QueryResult> getFilteredContent(Map<String, dynamic> variables) async {
+    return GraphQLService.client.query(
+      QueryOptions(
+        document: gql(DiscoverFilterQueries.buildFilterQuery(variables)),
+        variables: variables,
+        fetchPolicy: FetchPolicy.networkOnly,
       ),
     );
   }

@@ -109,11 +109,10 @@ query TrendingAnime($page: Int) {
   // 💎 Hidden Gems
   static const String hiddenGems = r'''
 query HiddenGems($page: Int) {
-  Page(page: $page, perPage: 20) {
+  Page(page: $page, perPage: 50) {
     media(
       type: ANIME
       sort: SCORE_DESC
-      popularity_lesser: 30000
       averageScore_greater: 80
       isAdult: false
     ) {
@@ -126,6 +125,7 @@ query HiddenGems($page: Int) {
         extraLarge
       }
       averageScore
+      popularity
       genres
     }
   }
@@ -163,6 +163,132 @@ query TopRatedAnime($page: Int) {
   Page(page: $page, perPage: 20) {
     media(
       type: ANIME
+      sort: SCORE_DESC
+      isAdult: false
+    ) {
+      id
+      title {
+        romaji
+        english
+      }
+      coverImage {
+        extraLarge
+      }
+      averageScore
+      genres
+    }
+  }
+}
+''';
+
+  // 🎲 Random Manga
+  static const String randomManga = r'''
+query RandomManga($page: Int) {
+  Page(page: $page, perPage: 1) {
+    media(
+      type: MANGA
+      sort: POPULARITY_DESC
+      isAdult: false
+    ) {
+      id
+      title {
+        romaji
+        english
+      }
+      coverImage {
+        extraLarge
+      }
+      bannerImage
+      averageScore
+      genres
+      description(asHtml: false)
+      status
+    }
+  }
+}
+''';
+
+  // 🔥 Trending Manga
+  static const String trendingManga = r'''
+query TrendingManga($page: Int) {
+  Page(page: $page, perPage: 20) {
+    media(
+      type: MANGA
+      sort: TRENDING_DESC
+      isAdult: false
+    ) {
+      id
+      title {
+        romaji
+        english
+      }
+      coverImage {
+        extraLarge
+      }
+      averageScore
+      genres
+    }
+  }
+}
+''';
+
+  // 💎 Hidden Gems Manga
+  static const String hiddenGemsManga = r'''
+query HiddenGemsManga($page: Int) {
+  Page(page: $page, perPage: 50) {
+    media(
+      type: MANGA
+      sort: SCORE_DESC
+      averageScore_greater: 80
+      isAdult: false
+    ) {
+      id
+      title {
+        romaji
+        english
+      }
+      coverImage {
+        extraLarge
+      }
+      averageScore
+      popularity
+      genres
+    }
+  }
+}
+''';
+
+  // 📅 Airing This Season Manga (Currently Publishing)
+  static const String airingManga = r'''
+query AiringManga($page: Int) {
+  Page(page: $page, perPage: 20) {
+    media(
+      type: MANGA
+      status: RELEASING
+      sort: POPULARITY_DESC
+      isAdult: false
+    ) {
+      id
+      title {
+        romaji
+        english
+      }
+      coverImage {
+        extraLarge
+      }
+      averageScore
+      genres
+    }
+  }
+}
+''';
+
+  // ⭐ Top Rated Manga
+  static const String topRatedManga = r'''
+query TopRatedManga($page: Int) {
+  Page(page: $page, perPage: 20) {
+    media(
+      type: MANGA
       sort: SCORE_DESC
       isAdult: false
     ) {

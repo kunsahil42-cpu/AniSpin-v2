@@ -6,6 +6,7 @@ class AnimeModel {
   final int? score;
   final int? episodes;
   final String? status;
+  final List<String> genres;
 
   AnimeModel({
     required this.id,
@@ -15,6 +16,7 @@ class AnimeModel {
     required this.score,
     required this.episodes,
     required this.status,
+    required this.genres,
   });
 
   factory AnimeModel.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,7 @@ class AnimeModel {
       score: json['averageScore'],
       episodes: json['episodes'],
       status: json['status'],
+      genres: List<String>.from(json['genres'] ?? []),
     );
   }
 }

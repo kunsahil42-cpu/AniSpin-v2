@@ -70,6 +70,24 @@ class AppSettings {
   final String preferredAudioLanguage;
   final String region;
 
+  // Content Filtering
+  final List<String> blockedGenres;
+
+  // Discover Filters
+  final List<String> discoverGenres;
+  final String? discoverSeason;
+  final List<int> discoverYears;
+  final List<String> discoverTypes;
+  final List<String> discoverStatuses;
+  final List<String> discoverLanguages;
+  final List<String> discoverRatings;
+  final List<String> discoverSources;
+  final int? discoverMinRange;
+  final int? discoverMaxRange;
+  final String discoverSortBy;
+  final bool discoverIsManga;
+  final String lastHomeTab;
+
   const AppSettings({
     required this.themeOption,
     required this.amoledTheme,
@@ -99,6 +117,20 @@ class AppSettings {
     required this.preferredSubtitleLanguage,
     required this.preferredAudioLanguage,
     required this.region,
+    required this.blockedGenres,
+    required this.discoverGenres,
+    this.discoverSeason,
+    required this.discoverYears,
+    required this.discoverTypes,
+    required this.discoverStatuses,
+    required this.discoverLanguages,
+    required this.discoverRatings,
+    required this.discoverSources,
+    this.discoverMinRange,
+    this.discoverMaxRange,
+    required this.discoverSortBy,
+    required this.discoverIsManga,
+    required this.lastHomeTab,
   });
 
   factory AppSettings.defaultSettings() {
@@ -131,6 +163,20 @@ class AppSettings {
       preferredSubtitleLanguage: "en",
       preferredAudioLanguage: "en",
       region: "US",
+      blockedGenres: const ["Adult", "Ecchi", "Hentai", "Smut"],
+      discoverGenres: const [],
+      discoverSeason: null,
+      discoverYears: const [],
+      discoverTypes: const [],
+      discoverStatuses: const [],
+      discoverLanguages: const [],
+      discoverRatings: const [],
+      discoverSources: const [],
+      discoverMinRange: null,
+      discoverMaxRange: null,
+      discoverSortBy: "Default",
+      discoverIsManga: false,
+      lastHomeTab: "anime",
     );
   }
 
@@ -163,6 +209,23 @@ class AppSettings {
     String? preferredSubtitleLanguage,
     String? preferredAudioLanguage,
     String? region,
+    List<String>? blockedGenres,
+    List<String>? discoverGenres,
+    String? discoverSeason,
+    List<int>? discoverYears,
+    List<String>? discoverTypes,
+    List<String>? discoverStatuses,
+    List<String>? discoverLanguages,
+    List<String>? discoverRatings,
+    List<String>? discoverSources,
+    int? discoverMinRange,
+    int? discoverMaxRange,
+    String? discoverSortBy,
+    bool? discoverIsManga,
+    String? lastHomeTab,
+    bool clearSeason = false,
+    bool clearMinRange = false,
+    bool clearMaxRange = false,
   }) {
     return AppSettings(
       themeOption: themeOption ?? this.themeOption,
@@ -193,6 +256,20 @@ class AppSettings {
       preferredSubtitleLanguage: preferredSubtitleLanguage ?? this.preferredSubtitleLanguage,
       preferredAudioLanguage: preferredAudioLanguage ?? this.preferredAudioLanguage,
       region: region ?? this.region,
+      blockedGenres: blockedGenres ?? this.blockedGenres,
+      discoverGenres: discoverGenres ?? this.discoverGenres,
+      discoverSeason: clearSeason ? null : (discoverSeason ?? this.discoverSeason),
+      discoverYears: discoverYears ?? this.discoverYears,
+      discoverTypes: discoverTypes ?? this.discoverTypes,
+      discoverStatuses: discoverStatuses ?? this.discoverStatuses,
+      discoverLanguages: discoverLanguages ?? this.discoverLanguages,
+      discoverRatings: discoverRatings ?? this.discoverRatings,
+      discoverSources: discoverSources ?? this.discoverSources,
+      discoverMinRange: clearMinRange ? null : (discoverMinRange ?? this.discoverMinRange),
+      discoverMaxRange: clearMaxRange ? null : (discoverMaxRange ?? this.discoverMaxRange),
+      discoverSortBy: discoverSortBy ?? this.discoverSortBy,
+      discoverIsManga: discoverIsManga ?? this.discoverIsManga,
+      lastHomeTab: lastHomeTab ?? this.lastHomeTab,
     );
   }
 
@@ -226,6 +303,20 @@ class AppSettings {
       'preferredSubtitleLanguage': preferredSubtitleLanguage,
       'preferredAudioLanguage': preferredAudioLanguage,
       'region': region,
+      'blockedGenres': blockedGenres,
+      'discoverGenres': discoverGenres,
+      'discoverSeason': discoverSeason,
+      'discoverYears': discoverYears,
+      'discoverTypes': discoverTypes,
+      'discoverStatuses': discoverStatuses,
+      'discoverLanguages': discoverLanguages,
+      'discoverRatings': discoverRatings,
+      'discoverSources': discoverSources,
+      'discoverMinRange': discoverMinRange,
+      'discoverMaxRange': discoverMaxRange,
+      'discoverSortBy': discoverSortBy,
+      'discoverIsManga': discoverIsManga,
+      'lastHomeTab': lastHomeTab,
     };
   }
 
@@ -285,6 +376,20 @@ class AppSettings {
       preferredSubtitleLanguage: json['preferredSubtitleLanguage'] ?? def.preferredSubtitleLanguage,
       preferredAudioLanguage: json['preferredAudioLanguage'] ?? def.preferredAudioLanguage,
       region: json['region'] ?? def.region,
+      blockedGenres: (json['blockedGenres'] as List?)?.map((e) => e.toString()).toList() ?? def.blockedGenres,
+      discoverGenres: (json['discoverGenres'] as List?)?.map((e) => e.toString()).toList() ?? def.discoverGenres,
+      discoverSeason: json['discoverSeason'] as String?,
+      discoverYears: (json['discoverYears'] as List?)?.map((e) => (e as num).toInt()).toList() ?? def.discoverYears,
+      discoverTypes: (json['discoverTypes'] as List?)?.map((e) => e.toString()).toList() ?? def.discoverTypes,
+      discoverStatuses: (json['discoverStatuses'] as List?)?.map((e) => e.toString()).toList() ?? def.discoverStatuses,
+      discoverLanguages: (json['discoverLanguages'] as List?)?.map((e) => e.toString()).toList() ?? def.discoverLanguages,
+      discoverRatings: (json['discoverRatings'] as List?)?.map((e) => e.toString()).toList() ?? def.discoverRatings,
+      discoverSources: (json['discoverSources'] as List?)?.map((e) => e.toString()).toList() ?? def.discoverSources,
+      discoverMinRange: json['discoverMinRange'] as int?,
+      discoverMaxRange: json['discoverMaxRange'] as int?,
+      discoverSortBy: json['discoverSortBy'] ?? def.discoverSortBy,
+      discoverIsManga: json['discoverIsManga'] ?? def.discoverIsManga,
+      lastHomeTab: json['lastHomeTab'] ?? def.lastHomeTab,
     );
   }
 }

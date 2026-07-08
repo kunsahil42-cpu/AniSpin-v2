@@ -5,6 +5,7 @@ class DiscoverAnimeModel {
   final String coverImage;
   final String bannerImage;
   final int? averageScore;
+  final int? popularity;
   final int? episodes;
   final List<String> genres;
   final String description;
@@ -17,6 +18,7 @@ class DiscoverAnimeModel {
     required this.coverImage,
     required this.bannerImage,
     required this.averageScore,
+    this.popularity,
     required this.episodes,
     required this.genres,
     required this.description,
@@ -39,6 +41,9 @@ class DiscoverAnimeModel {
 
       averageScore:
           json['averageScore'],
+
+      popularity:
+          json['popularity'],
 
       episodes:
           json['episodes'],

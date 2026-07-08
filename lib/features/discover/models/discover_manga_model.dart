@@ -5,6 +5,7 @@ class DiscoverMangaModel {
   final String coverImage;
   final String bannerImage;
   final int? averageScore;
+  final int? popularity;
   final List<String> genres;
   final String description;
   final String? status;
@@ -16,6 +17,7 @@ class DiscoverMangaModel {
     required this.coverImage,
     required this.bannerImage,
     required this.averageScore,
+    this.popularity,
     required this.genres,
     required this.description,
     required this.status,
@@ -37,6 +39,9 @@ class DiscoverMangaModel {
 
       averageScore:
           json['averageScore'],
+
+      popularity:
+          json['popularity'],
 
       genres: List<String>.from(
         json['genres'] ?? [],

@@ -72,7 +72,7 @@ class HomeHeader extends ConsumerWidget {
                       label: 'Anime',
                       selected: homeType == HomeType.anime,
                       onTap: () {
-                        ref.read(homeTypeProvider.notifier).state = HomeType.anime;
+                        ref.read(homeTypeProvider.notifier).setType(HomeType.anime);
                       },
                     ),
                     _ToggleItem(
@@ -80,7 +80,7 @@ class HomeHeader extends ConsumerWidget {
                       label: 'Manga',
                       selected: homeType == HomeType.manga,
                       onTap: () {
-                        ref.read(homeTypeProvider.notifier).state = HomeType.manga;
+                        ref.read(homeTypeProvider.notifier).setType(HomeType.manga);
                       },
                     ),
                   ],

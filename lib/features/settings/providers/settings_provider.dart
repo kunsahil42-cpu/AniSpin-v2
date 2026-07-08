@@ -50,6 +50,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> setDoubleTapZoom(bool val) => updateSettings(state.copyWith(doubleTapZoom: val));
   Future<void> setKeepScreenOn(bool val) => updateSettings(state.copyWith(keepScreenOn: val));
   Future<void> setRememberLastPage(bool val) => updateSettings(state.copyWith(rememberLastPage: val));
+  Future<void> setLastHomeTab(String val) => updateSettings(state.copyWith(lastHomeTab: val));
 
   Future<void> setNotifyNewEpisodes(bool val) => updateSettings(state.copyWith(notifyNewEpisodes: val));
   Future<void> setNotifyNewChapters(bool val) => updateSettings(state.copyWith(notifyNewChapters: val));
@@ -62,4 +63,41 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> setPreferredSubtitleLanguage(String val) => updateSettings(state.copyWith(preferredSubtitleLanguage: val));
   Future<void> setPreferredAudioLanguage(String val) => updateSettings(state.copyWith(preferredAudioLanguage: val));
   Future<void> setRegion(String val) => updateSettings(state.copyWith(region: val));
+  Future<void> setBlockedGenres(List<String> val) => updateSettings(state.copyWith(blockedGenres: val));
+
+  Future<void> updateDiscoverFilters({
+    List<String>? discoverGenres,
+    String? discoverSeason,
+    List<int>? discoverYears,
+    List<String>? discoverTypes,
+    List<String>? discoverStatuses,
+    List<String>? discoverLanguages,
+    List<String>? discoverRatings,
+    List<String>? discoverSources,
+    int? discoverMinRange,
+    int? discoverMaxRange,
+    String? discoverSortBy,
+    bool? discoverIsManga,
+    bool clearSeason = false,
+    bool clearMinRange = false,
+    bool clearMaxRange = false,
+  }) {
+    return updateSettings(state.copyWith(
+      discoverGenres: discoverGenres,
+      discoverSeason: discoverSeason,
+      discoverYears: discoverYears,
+      discoverTypes: discoverTypes,
+      discoverStatuses: discoverStatuses,
+      discoverLanguages: discoverLanguages,
+      discoverRatings: discoverRatings,
+      discoverSources: discoverSources,
+      discoverMinRange: discoverMinRange,
+      discoverMaxRange: discoverMaxRange,
+      discoverSortBy: discoverSortBy,
+      discoverIsManga: discoverIsManga,
+      clearSeason: clearSeason,
+      clearMinRange: clearMinRange,
+      clearMaxRange: clearMaxRange,
+    ));
+  }
 }

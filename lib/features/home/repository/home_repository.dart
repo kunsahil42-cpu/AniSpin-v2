@@ -155,6 +155,12 @@ class HomeRepository {
     final english = j['title_english'] as String?;
     final score = j['score'];
     final episodes = j['episodes'];
+    final genresList = (j['genres'] as List?)
+            ?.whereType<Map>()
+            .map((g) => g['name']?.toString() ?? '')
+            .where((s) => s.isNotEmpty)
+            .toList() ??
+        const <String>[];
 
     return HomeAnimeModel(
       id: (j['mal_id'] as num?)?.toInt() ?? 0,
@@ -164,6 +170,7 @@ class HomeRepository {
       coverImage: (jpg?['large_image_url'] ?? jpg?['image_url'] ?? '') as String,
       averageScore: score is num ? (score * 10).round() : null,
       episodes: episodes is num ? episodes.toInt() : null,
+      genres: genresList,
     );
   }
 

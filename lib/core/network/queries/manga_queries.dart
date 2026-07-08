@@ -152,6 +152,7 @@ query SearchManga($search: String) {
       averageScore
       chapters
       status
+      genres
     }
   }
 }

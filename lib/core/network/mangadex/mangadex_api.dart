@@ -150,6 +150,118 @@ class MangaDexApi {
     return allData;
   }
 
+  /// GET /manga/{id}/feed (Manga Feed (Chapters)) returning a Stream of pages.
+  Stream<List<dynamic>> getMangaFeedStream(String mangaDexId, [Map<String, dynamic>? queryParams]) async* {
+    int offset = 0;
+    const int limit = 500;
+    const int maxOffset = 10000;
+
+    while (true) {
+      final params = <String, dynamic>{
+        'translatedLanguage[]': ['en'],
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+        'order[chapter]': 'asc',
+        'contentRating[]': ['safe', 'suggestive', 'erotica', 'pornographic'],
+        'includes[]': ['scanlation_group'],
+        ...?queryParams,
+      };
+
+      if (queryParams != null &&
+          queryParams.containsKey('translatedLanguage[]') &&
+          queryParams['translatedLanguage[]'] == null) {
+        params.remove('translatedLanguage[]');
+      }
+
+      final path = _buildPath('/manga/$mangaDexId/feed', params);
+
+      Map<String, dynamic> response;
+      try {
+        response = await _requestWithRetry(path);
+      } catch (e) {
+        _log('Feed page stream at offset $offset for $mangaDexId failed: $e');
+        break;
+      }
+
+      final data = response['data'] as List?;
+      if (data == null || data.isEmpty) break;
+
+      yield data;
+
+      final total = response['total'] as int? ?? 0;
+      offset += limit;
+      if (offset >= total) break;
+      if (offset + limit > maxOffset) {
+        _log('Reached MangaDex offset ceiling for stream $mangaDexId ($total entries).');
+        break;
+      }
+    }
+  }
+
+  /// Query MangaDex for candidate items with full attributes.
+  Future<List<Map<String, dynamic>>> searchMangaDetails({
+    required String title,
+    int? aniListId,
+    int? malId,
+  }) async {
+    final candidates = <Map<String, dynamic>>[];
+    final seenIds = <String>{};
+
+    void addCandidates(List<dynamic> items) {
+      for (final item in items) {
+        if (item is Map) {
+          final id = item['id'] as String?;
+          if (id != null && !seenIds.contains(id)) {
+            seenIds.add(id);
+            candidates.add(Map<String, dynamic>.from(item));
+          }
+        }
+      }
+    }
+
+    // 1. Query by AniList ID if available
+    if (aniListId != null) {
+      try {
+        final path = '/manga?links[al]=${aniListId.toString()}&includes[]=author';
+        final response = await _requestWithRetry(path);
+        final data = response['data'] as List?;
+        if (data != null) {
+          addCandidates(data);
+        }
+      } catch (_) {}
+    }
+
+    // 2. Query by MAL ID if available
+    if (malId != null && candidates.isEmpty) {
+      try {
+        final path = '/manga?links[mal]=${malId.toString()}&includes[]=author';
+        final response = await _requestWithRetry(path);
+        final data = response['data'] as List?;
+        if (data != null) {
+          addCandidates(data);
+        }
+      } catch (_) {}
+    }
+
+    // 3. Fallback to title search
+    if (candidates.isEmpty) {
+      try {
+        final encodedTitle = Uri.encodeComponent(title);
+        final path = '/manga?title=$encodedTitle&limit=10&includes[]=author'
+            '&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&contentRating[]=pornographic';
+        final response = await _requestWithRetry(path);
+        final data = response['data'] as List?;
+        if (data != null) {
+          addCandidates(data);
+        }
+      } catch (e) {
+        _log('Failed to query title "$title" in searchMangaDetails: $e');
+      }
+    }
+
+    return candidates;
+  }
+
   /// GET /manga/random (Random Manga)
   Future<Map<String, dynamic>> getRandomManga([Map<String, dynamic>? queryParams]) async {
     final params = <String, dynamic>{
@@ -205,7 +317,7 @@ class MangaDexApi {
   }
 
   /// GET /at-home/server/{chapterId} (Chapter Images)
-  Future<List<String>> getChapterPages(String chapterDexId) async {
+  Future<List<String>> getChapterPages(String chapterDexId, {bool useDataSaver = false}) async {
     final path = '/at-home/server/$chapterDexId';
     final response = await _requestWithRetry(path);
     
@@ -216,14 +328,19 @@ class MangaDexApi {
     }
 
     final hash = chapter['hash'] as String?;
-    final filenames = chapter['data'] as List?;
+    final filenames = ((useDataSaver && chapter['dataSaver'] != null && (chapter['dataSaver'] as List).isNotEmpty)
+        ? chapter['dataSaver']
+        : chapter['data']) as List?;
+    final actualUseSaver = useDataSaver && chapter['dataSaver'] != null && (chapter['dataSaver'] as List).isNotEmpty;
+    final modePath = actualUseSaver ? 'data-saver' : 'data';
+    
     if (hash == null || filenames == null || filenames.isEmpty) {
       throw AppFailure.server('No pages found for this chapter.');
     }
 
     return filenames
         .whereType<String>()
-        .map((filename) => '$baseUrl/data/$hash/$filename')
+        .map((filename) => '$baseUrl/$modePath/$hash/$filename')
         .toList();
   }
 

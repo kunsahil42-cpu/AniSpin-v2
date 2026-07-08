@@ -13,6 +13,7 @@ import '../../anime_details/widgets/genre_chip.dart';
 import '../../anime_details/widgets/score_badge.dart';
 import '../../anime_details/widgets/status_chip.dart';
 import '../../tracker/providers/tracker_providers.dart';
+import '../models/manga_details_model.dart';
 import '../providers/manga_details_provider.dart';
 import '../widgets/chapter_list.dart';
 import '../widgets/manga_favorite_button.dart';
@@ -25,16 +26,16 @@ class MangaDetailsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final manga = ref.watch(mangaDetailsProvider(mangaId));
+    final mangaAsync = ref.watch(mangaDetailsProvider(mangaId));
     final progressAsync = ref.watch(mangaProgressProvider(mangaId));
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: AsyncNetworkView(
-        value: manga,
+        value: mangaAsync,
         loading: () => const SkeletonDetails(),
         onRetry: () => ref.invalidate(mangaDetailsProvider(mangaId)),
-        data: (mangaData) {
+        data: (MangaDetailsModel manga) {
           final theme = Theme.of(context);
           final isTablet = MediaQuery.of(context).size.width >= 600;
           final progress = progressAsync.valueOrNull;
@@ -97,7 +98,7 @@ class MangaDetailsScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-  
+
                 // ── Content ─────────────────────────────────────────────────
                 SliverToBoxAdapter(
                   child: Transform.translate(
@@ -105,7 +106,12 @@ class MangaDetailsScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        AnimeBanner(imageUrl: mangaData.bannerImage),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          child: manga.bannerImage.isNotEmpty
+                              ? AnimeBanner(imageUrl: manga.bannerImage)
+                              : const SizedBox.shrink(),
+                        ),
                         Transform.translate(
                           offset: const Offset(0, -80),
                           child: Padding(
@@ -113,182 +119,222 @@ class MangaDetailsScreen extends ConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-  
-                          // Poster
-                          Hero(
-                            tag: 'manga_$mangaId',
-                            child: AnimePoster(imageUrl: mangaData.coverImage),
-                          ),
-  
-                          const SizedBox(height: 16),
-  
-                          // Romaji title
-                          Text(
-                            mangaData.romajiTitle,
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.5,
+                                // Poster
+                                Hero(
+                                  tag: 'manga_$mangaId',
+                                  child: AnimePoster(
+                                    imageUrl: manga.coverImage.isNotEmpty
+                                        ? manga.coverImage
+                                        : '',
+                                  ),
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                // Romaji title
+                                Text(
+                                  manga.romajiTitle,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.headlineSmall?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+
+                                // English title
+                                if ((manga.englishTitle ?? '').isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      manga.englishTitle!,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.titleMedium?.copyWith(
+                                        color: theme.colorScheme.onSurface
+                                            .withValues(alpha: 0.65),
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                  ),
+
+                                const SizedBox(height: 18),
+
+                                // Score / Status / Favorite row
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: ScoreBadge(
+                                        score: manga.averageScore ?? 0,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: StatusChip(
+                                        status: manga.status ?? 'Unknown',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: MangaFavoriteButton(
+                                        mangaId: manga.id,
+                                        romajiTitle: manga.romajiTitle,
+                                        englishTitle: manga.englishTitle,
+                                        coverImage: manga.coverImage.isNotEmpty
+                                            ? manga.coverImage
+                                            : '',
+                                        bannerImage: manga.bannerImage.isNotEmpty
+                                            ? manga.bannerImage
+                                            : '',
+                                        chapters: manga.chapters ?? 0,
+                                        volumes: manga.volumes ?? 0,
+                                        status: manga.status ?? 'Unknown',
+                                        author: manga.author,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 20),
+
+                                // Genres
+                                Wrap(
+                                  alignment: WrapAlignment.center,
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: manga.genres
+                                      .map((g) => GenreChip(genre: g))
+                                      .toList(),
+                                ),
+
+                                const SizedBox(height: 24),
+
+                                // Metadata grid
+                                GridView.count(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  crossAxisCount: isTablet ? 4 : 2,
+                                  mainAxisSpacing: 12,
+                                  crossAxisSpacing: 12,
+                                  childAspectRatio: isTablet ? 3.0 : 2.8,
+                                  children: [
+                                    _MetadataCard(
+                                      icon: Icons.menu_book_rounded,
+                                      title: 'Chapters',
+                                      value:
+                                          manga.chapters != null
+                                              ? manga.chapters.toString()
+                                              : '-',
+                                    ),
+                                    _MetadataCard(
+                                      icon: Icons.library_books_rounded,
+                                      title: 'Volumes',
+                                      value:
+                                          manga.volumes != null
+                                              ? manga.volumes.toString()
+                                              : '-',
+                                    ),
+                                    _MetadataCard(
+                                      icon: Icons.edit_rounded,
+                                      title: 'Author',
+                                      value: manga.author.isNotEmpty
+                                          ? manga.author
+                                          : '-',
+                                    ),
+                                    _MetadataCard(
+                                      icon: Icons.format_list_bulleted_rounded,
+                                      title: 'Format',
+                                      value: manga.format != null
+                                          ? manga.format!
+                                              .replaceAll('_', ' ')
+                                          : '-',
+                                    ),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 26),
+
+                                MangaTrackingSection(
+                                  mangaId: manga.id,
+                                  title: manga.romajiTitle,
+                                  englishTitle: manga.englishTitle,
+                                  coverImage: manga.coverImage.isNotEmpty
+                                      ? manga.coverImage
+                                      : '',
+                                  bannerImage: manga.bannerImage.isNotEmpty
+                                                  ? manga.bannerImage
+                                                  : '',
+                                  totalChapters: manga.chapters ?? 0,
+                                  totalVolumes: manga.volumes ?? 0,
+                                  genres: manga.genres,
+                                  author: manga.author,
+                                ),
+
+                                const SizedBox(height: 26),
+
+                                DescriptionSection(
+                                  description: manga.description.isNotEmpty ? manga.description : 'No description available.',
+                                ),
+
+                                const SizedBox(height: 24),
+
+                                FilledButton.icon(
+                                  onPressed: () {
+                                    context.push(
+                                      '/manga/${manga.id}/read/$currentChapter',
+                                      extra: {
+                                        'romajiTitle': manga.romajiTitle,
+                                        'englishTitle': manga.englishTitle,
+                                        'coverImage': manga.coverImage.isNotEmpty
+                                            ? manga.coverImage
+                                            : '',
+                                        'bannerImage': manga.bannerImage.isNotEmpty
+                                            ? manga.bannerImage
+                                            : '',
+                                        'totalChapters': manga.chapters ?? 100,
+                                      },
+                                    );
+                                  },
+                                  icon: const Icon(Icons.menu_book),
+                                  label: Text(
+                                      progress != null
+                                          ? 'Continue Chapter $currentChapter'
+                                          : 'Read Manga'),
+                                ),
+
+                                const SizedBox(height: 24),
+
+                                ChapterList(
+                                  mangaId: manga.id,
+                                  totalChapters: manga.chapters ?? 50,
+                                  romajiTitle: manga.romajiTitle,
+                                  englishTitle: manga.englishTitle,
+                                  coverImage: manga.coverImage.isNotEmpty
+                                      ? manga.coverImage
+                                      : '',
+                                  bannerImage: manga.bannerImage.isNotEmpty
+                                      ? manga.bannerImage
+                                      : '',
+                                ),
+
+                                const SizedBox(height: 40),
+                              ],
                             ),
                           ),
-  
-                          // English title
-                          if (mangaData.englishTitle != null &&
-                              mangaData.englishTitle!.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Text(
-                                mangaData.englishTitle!,
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: theme.colorScheme.onSurface
-                                      .withValues(alpha: 0.65),
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ),
-  
-                          const SizedBox(height: 18),
-  
-                          // Score / Status / Favorite row
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Expanded(child: ScoreBadge(score: mangaData.averageScore)),
-                              const SizedBox(width: 8),
-                              Expanded(child: StatusChip(status: mangaData.status)),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: MangaFavoriteButton(
-                                  mangaId: mangaData.id,
-                                  romajiTitle: mangaData.romajiTitle,
-                                  englishTitle: mangaData.englishTitle,
-                                  coverImage: mangaData.coverImage,
-                                  bannerImage: mangaData.bannerImage,
-                                  chapters: mangaData.chapters,
-                                  volumes: mangaData.volumes,
-                                  status: mangaData.status,
-                                  author: mangaData.author,
-                                ),
-                              ),
-                            ],
-                          ),
-  
-                          const SizedBox(height: 20),
-  
-                          // Genres
-                          Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: mangaData.genres
-                                .map((g) => GenreChip(genre: g))
-                                .toList(),
-                          ),
-  
-                          const SizedBox(height: 24),
-  
-                          // Metadata grid
-                          GridView.count(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            crossAxisCount: isTablet ? 4 : 2,
-                            mainAxisSpacing: 12,
-                            crossAxisSpacing: 12,
-                            childAspectRatio: isTablet ? 3.0 : 2.8,
-                            children: [
-                              _MetadataCard(
-                                icon: Icons.menu_book_rounded,
-                                title: 'Chapters',
-                                value: mangaData.chapters?.toString() ?? '-',
-                              ),
-                              _MetadataCard(
-                                icon: Icons.library_books_rounded,
-                                title: 'Volumes',
-                                value: mangaData.volumes?.toString() ?? '-',
-                              ),
-                              _MetadataCard(
-                                icon: Icons.edit_rounded,
-                                title: 'Author',
-                                value: mangaData.author.isEmpty
-                                    ? '-'
-                                    : mangaData.author,
-                              ),
-                              _MetadataCard(
-                                icon: Icons.format_list_bulleted_rounded,
-                                title: 'Format',
-                                value: mangaData.format?.replaceAll('_', ' ') ?? '-',
-                              ),
-                            ],
-                          ),
-  
-                          const SizedBox(height: 26),
+                        ),
+                        const SizedBox(height: 56),
+                      ],
+                    ),
+                  ),
+                ),
 
-                          MangaTrackingSection(
-                            mangaId: mangaData.id,
-                            title: mangaData.romajiTitle,
-                            englishTitle: mangaData.englishTitle,
-                            coverImage: mangaData.coverImage,
-                            bannerImage: mangaData.bannerImage,
-                            totalChapters: mangaData.chapters,
-                            totalVolumes: mangaData.volumes,
-                            genres: mangaData.genres,
-                            author: mangaData.author,
-                          ),
-
-                          const SizedBox(height: 26),
-  
-                          DescriptionSection(description: mangaData.description),
-  
-                          const SizedBox(height: 24),
-  
-                          FilledButton.icon(
-                            onPressed: () {
-                              context.push(
-                                '/manga/${mangaData.id}/read/$currentChapter',
-                                extra: {
-                                  'romajiTitle': mangaData.romajiTitle,
-                                  'englishTitle': mangaData.englishTitle,
-                                  'coverImage': mangaData.coverImage,
-                                  'bannerImage': mangaData.bannerImage,
-                                  'totalChapters': mangaData.chapters ?? 100,
-                                },
-                              );
-                            },
-                            icon: const Icon(Icons.menu_book),
-                            label: Text(progress != null ? 'Continue Chapter $currentChapter' : 'Read Manga'),
-                          ),
-  
-                          const SizedBox(height: 24),
-  
-                          ChapterList(
-                            mangaId: mangaData.id,
-                            totalChapters: mangaData.chapters ?? 50,
-                            romajiTitle: mangaData.romajiTitle,
-                            englishTitle: mangaData.englishTitle,
-                            coverImage: mangaData.coverImage,
-                            bannerImage: mangaData.bannerImage,
-                          ),
-  
-                          const SizedBox(height: 40),
-  
-                        ], // Column children
-                      ), // Column
-                    ), // Padding
-                  ), // Transform.translate
-                  const SizedBox(height: 56),
-                ], // outer Column children
-              ), // outer Column
-            ), // outer Transform.translate
-          ), // SliverToBoxAdapter
-  
-              ], // slivers
-            ), // CustomScrollView
-          ); // RefreshIndicator
+                // slivers
+              ],
+            ),
+          );
         },
       ),
     );

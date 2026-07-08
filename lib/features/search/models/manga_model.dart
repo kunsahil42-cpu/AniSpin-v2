@@ -6,6 +6,7 @@ class MangaModel {
   final int? score;
   final int? chapters;
   final String? status;
+  final List<String> genres;
 
   MangaModel({
     required this.id,
@@ -15,6 +16,7 @@ class MangaModel {
     required this.score,
     required this.chapters,
     required this.status,
+    required this.genres,
   });
 
   factory MangaModel.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,7 @@ class MangaModel {
       score: json['averageScore'],
       chapters: json['chapters'],
       status: json['status'],
+      genres: List<String>.from(json['genres'] ?? []),
     );
   }
 }

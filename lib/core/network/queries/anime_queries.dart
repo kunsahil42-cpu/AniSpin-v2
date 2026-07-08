@@ -14,6 +14,7 @@ query SearchAnime($search: String) {
       averageScore
       episodes
       status
+      genres
     }
   }
 }
