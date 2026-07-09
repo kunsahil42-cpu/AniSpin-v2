@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/watch_progress.dart';
 import '../models/reading_progress.dart';
@@ -15,8 +16,10 @@ final readingProgressRepositoryProvider = Provider<ReadingProgressRepository>((r
 
 final continueWatchingProvider = StreamProvider<List<WatchProgress>>((ref) {
   final repo = ref.watch(watchProgressRepositoryProvider);
-  final settings = ref.watch(settingsNotifierProvider);
-  final blocked = settings.blockedGenres;
+  final blocked = ref.watch(blockedGenresProvider);
+  if (kDebugMode) {
+    debugPrint('[Tracker] continueWatchingProvider — blockedGenres used during filtering: $blocked');
+  }
 
   return repo.watchContinueWatching().map((list) {
     if (blocked.isEmpty) return list;
@@ -29,8 +32,10 @@ final continueWatchingProvider = StreamProvider<List<WatchProgress>>((ref) {
 
 final continueReadingProvider = StreamProvider<List<ReadingProgress>>((ref) {
   final repo = ref.watch(readingProgressRepositoryProvider);
-  final settings = ref.watch(settingsNotifierProvider);
-  final blocked = settings.blockedGenres;
+  final blocked = ref.watch(blockedGenresProvider);
+  if (kDebugMode) {
+    debugPrint('[Tracker] continueReadingProvider — blockedGenres used during filtering: $blocked');
+  }
 
   return repo.watchContinueReading().map((list) {
     if (blocked.isEmpty) return list;

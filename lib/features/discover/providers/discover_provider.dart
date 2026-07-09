@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../enums/discover_mode.dart';
@@ -13,12 +14,17 @@ final discoverRepositoryProvider =
 
 final animeOfTheDayProvider =
     FutureProvider<DiscoverAnimeModel?>((ref) async {
+  // Read blocked genres BEFORE any await so the dependency is registered
+  // before this provider becomes async — prevents stale filtering.
+  final blocked = ref.watch(blockedGenresProvider);
+  if (kDebugMode) {
+    debugPrint('[Discover] animeOfTheDayProvider — blockedGenres used during filtering: $blocked');
+  }
+
   final anime = await ref
       .read(discoverRepositoryProvider)
       .getAnimeOfTheDay();
 
-  final settings = ref.watch(settingsNotifierProvider);
-  final blocked = settings.blockedGenres;
   if (blocked.isEmpty) return anime;
 
   final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
@@ -30,12 +36,17 @@ final animeOfTheDayProvider =
 
 final mangaOfTheDayProvider =
     FutureProvider<DiscoverMangaModel?>((ref) async {
+  // Read blocked genres BEFORE any await so the dependency is registered
+  // before this provider becomes async — prevents stale filtering.
+  final blocked = ref.watch(blockedGenresProvider);
+  if (kDebugMode) {
+    debugPrint('[Discover] mangaOfTheDayProvider — blockedGenres used during filtering: $blocked');
+  }
+
   final manga = await ref
       .read(discoverRepositoryProvider)
       .getMangaOfTheDay();
 
-  final settings = ref.watch(settingsNotifierProvider);
-  final blocked = settings.blockedGenres;
   if (blocked.isEmpty) return manga;
 
   final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
@@ -50,15 +61,17 @@ final discoverListProvider =
         List<DiscoverAnimeModel>,
         DiscoverMode>((ref, mode) async {
   final repo = ref.read(discoverRepositoryProvider);
-  final settings = ref.watch(settingsNotifierProvider);
-  final blocked = settings.blockedGenres;
+  final blocked = ref.watch(blockedGenresProvider);
+  if (kDebugMode) {
+    debugPrint('[Discover] discoverListProvider($mode) — blockedGenres used during filtering: $blocked');
+  }
 
   if (blocked.isEmpty) {
     return repo.getAnimeList(mode);
   }
 
   final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
-  bool _isBlocked(DiscoverAnimeModel item) =>
+  bool isBlocked(DiscoverAnimeModel item) =>
       item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
 
   const targetCount = 20;
@@ -68,7 +81,7 @@ final discoverListProvider =
   for (int page = 1; page <= maxPages; page++) {
     final raw = await repo.getAnimeList(mode, page: page);
     for (final item in raw) {
-      if (!_isBlocked(item)) accumulated.add(item);
+      if (!isBlocked(item)) accumulated.add(item);
     }
     // Stop early if we have enough or API returned fewer than a full page
     if (accumulated.length >= targetCount || raw.length < 20) break;
@@ -81,15 +94,17 @@ final discoverMangaListProvider =
         List<DiscoverMangaModel>,
         DiscoverMode>((ref, mode) async {
   final repo = ref.read(discoverRepositoryProvider);
-  final settings = ref.watch(settingsNotifierProvider);
-  final blocked = settings.blockedGenres;
+  final blocked = ref.watch(blockedGenresProvider);
+  if (kDebugMode) {
+    debugPrint('[Discover] discoverMangaListProvider($mode) — blockedGenres used during filtering: $blocked');
+  }
 
   if (blocked.isEmpty) {
     return repo.getMangaList(mode);
   }
 
   final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
-  bool _isBlocked(DiscoverMangaModel item) =>
+  bool isBlocked(DiscoverMangaModel item) =>
       item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
 
   const targetCount = 20;
@@ -99,9 +114,9 @@ final discoverMangaListProvider =
   for (int page = 1; page <= maxPages; page++) {
     final raw = await repo.getMangaList(mode, page: page);
     for (final item in raw) {
-      if (!_isBlocked(item)) accumulated.add(item);
+      if (!isBlocked(item)) accumulated.add(item);
     }
     if (accumulated.length >= targetCount || raw.length < 20) break;
   }
   return accumulated;
-});
+});

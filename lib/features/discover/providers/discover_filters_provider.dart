@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../settings/models/app_settings.dart';
 import '../../settings/providers/settings_provider.dart';
@@ -346,7 +347,11 @@ class FilteredMediaNotifier extends StateNotifier<FilteredMediaState> {
 
   bool _isBlocked(DiscoverMediaModel item) {
     if (_blockedLower.isEmpty) return false;
-    return item.genres.any((g) => _blockedLower.contains(g.toLowerCase()));
+    final result = item.genres.any((g) => _blockedLower.contains(g.toLowerCase()));
+    if (kDebugMode && result) {
+      debugPrint('[DiscoverFilters] Filtering out "${item.title}" — matched blocked genre in: ${item.genres}');
+    }
+    return result;
   }
 
   Future<void> fetchNextPage() async {
@@ -394,6 +399,9 @@ class FilteredMediaNotifier extends StateNotifier<FilteredMediaState> {
 
 final filteredMediaProvider = StateNotifierProvider.family<FilteredMediaNotifier, FilteredMediaState, DiscoverFilters>((ref, filters) {
   final repository = ref.read(discoverRepositoryProvider);
-  final settings = ref.watch(settingsNotifierProvider);
-  return FilteredMediaNotifier(repository, filters, settings.blockedGenres);
+  final blocked = ref.watch(blockedGenresProvider);
+  if (kDebugMode) {
+    debugPrint('[DiscoverFilters] filteredMediaProvider — blockedGenres used during filtering: $blocked');
+  }
+  return FilteredMediaNotifier(repository, filters, blocked);
 });

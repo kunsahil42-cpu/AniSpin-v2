@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/app_settings.dart';
 import '../repository/settings_repository.dart';
@@ -11,6 +12,17 @@ final settingsNotifierProvider = StateNotifierProvider<SettingsNotifier, AppSett
   return SettingsNotifier(repository);
 });
 
+/// Derived provider that exposes only the blockedGenres list.
+/// All content providers watch this so they re-execute precisely when
+/// the blocked-genres list changes, not on every unrelated settings update.
+final blockedGenresProvider = Provider<List<String>>((ref) {
+  final genres = ref.watch(settingsNotifierProvider).blockedGenres;
+  if (kDebugMode) {
+    debugPrint('[Settings] blockedGenresProvider evaluated — blockedGenres used during filtering: $genres');
+  }
+  return genres;
+});
+
 class SettingsNotifier extends StateNotifier<AppSettings> {
   final SettingsRepository _repository;
 
@@ -19,9 +31,21 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   }
 
   void _loadSettings() {
+    if (kDebugMode) {
+      debugPrint('[Settings] ▶ _loadSettings() called — initialising from storage');
+    }
     final saved = _repository.getSettingsSync();
     if (saved != null) {
+      if (kDebugMode) {
+        debugPrint('[Settings]   _loadSettings() — applying saved settings');
+        debugPrint('[Settings]   blockedGenres loaded from storage: ${saved.blockedGenres}');
+      }
       state = saved;
+    } else {
+      if (kDebugMode) {
+        debugPrint('[Settings]   _loadSettings() — no saved settings found, using defaults');
+        debugPrint('[Settings]   default blockedGenres: ${state.blockedGenres}');
+      }
     }
   }
 
@@ -63,7 +87,27 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> setPreferredSubtitleLanguage(String val) => updateSettings(state.copyWith(preferredSubtitleLanguage: val));
   Future<void> setPreferredAudioLanguage(String val) => updateSettings(state.copyWith(preferredAudioLanguage: val));
   Future<void> setRegion(String val) => updateSettings(state.copyWith(region: val));
-  Future<void> setBlockedGenres(List<String> val) => updateSettings(state.copyWith(blockedGenres: val));
+
+  /// Updates blocked genres and persists immediately.
+  ///
+  /// All content providers that watch [blockedGenresProvider] will automatically
+  /// re-execute because [blockedGenresProvider] is derived from [settingsNotifierProvider].
+  /// No manual invalidation is required — Riverpod's dependency graph handles it.
+  Future<void> setBlockedGenres(List<String> val) async {
+    if (kDebugMode) {
+      debugPrint('[Settings] ▶ setBlockedGenres() called');
+      debugPrint('[Settings]   genres before: ${state.blockedGenres}');
+      debugPrint('[Settings]   genres after:  $val');
+    }
+
+    // Update in-memory state immediately (UI responds instantly) and persist.
+    await updateSettings(state.copyWith(blockedGenres: val));
+
+    if (kDebugMode) {
+      debugPrint('[Settings] ✔ setBlockedGenres() complete');
+      debugPrint('[Settings]   final blockedGenres in state: ${state.blockedGenres}');
+    }
+  }
 
   Future<void> updateDiscoverFilters({
     List<String>? discoverGenres,

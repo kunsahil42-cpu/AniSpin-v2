@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../enums/home_section.dart';
@@ -15,15 +16,17 @@ final homeSectionProvider =
         HomeSection>(
   (ref, section) async {
     final repo = ref.read(homeRepositoryProvider);
-    final settings = ref.watch(settingsNotifierProvider);
-    final blocked = settings.blockedGenres;
+    final blocked = ref.watch(blockedGenresProvider);
+    if (kDebugMode) {
+      debugPrint('[Home] homeSectionProvider($section) — blockedGenres used during filtering: $blocked');
+    }
 
     if (blocked.isEmpty) {
       return repo.getAnime(section);
     }
 
     final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
-    bool _isBlocked(HomeAnimeModel item) =>
+    bool isBlocked(HomeAnimeModel item) =>
         item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
 
     const targetCount = 10;
@@ -33,7 +36,7 @@ final homeSectionProvider =
     for (int page = 1; page <= maxPages; page++) {
       final raw = await repo.getAnime(section, page: page);
       for (final item in raw) {
-        if (!_isBlocked(item)) accumulated.add(item);
+        if (!isBlocked(item)) accumulated.add(item);
       }
       if (accumulated.length >= targetCount || raw.length < 20) break;
     }

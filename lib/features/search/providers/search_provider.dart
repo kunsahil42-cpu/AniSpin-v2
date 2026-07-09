@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/anime_model.dart';
@@ -18,8 +19,10 @@ final animeSearchProvider =
   }
 
   final list = await repository.searchAnime(query);
-  final settings = ref.watch(settingsNotifierProvider);
-  final blocked = settings.blockedGenres;
+  final blocked = ref.watch(blockedGenresProvider);
+  if (kDebugMode) {
+    debugPrint('[Search] animeSearchProvider — blockedGenres used during filtering: $blocked');
+  }
   if (blocked.isEmpty) return list;
 
   final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
@@ -37,12 +40,14 @@ final mangaSearchProvider =
   }
 
   final list = await repository.searchManga(query);
-  final settings = ref.watch(settingsNotifierProvider);
-  final blocked = settings.blockedGenres;
+  final blocked = ref.watch(blockedGenresProvider);
+  if (kDebugMode) {
+    debugPrint('[Search] mangaSearchProvider — blockedGenres used during filtering: $blocked');
+  }
   if (blocked.isEmpty) return list;
 
   final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
   return list.where((item) {
     return !item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
   }).toList();
-});
+});

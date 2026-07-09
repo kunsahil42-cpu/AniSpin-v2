@@ -376,7 +376,12 @@ class AppSettings {
       preferredSubtitleLanguage: json['preferredSubtitleLanguage'] ?? def.preferredSubtitleLanguage,
       preferredAudioLanguage: json['preferredAudioLanguage'] ?? def.preferredAudioLanguage,
       region: json['region'] ?? def.region,
-      blockedGenres: (json['blockedGenres'] as List?)?.map((e) => e.toString()).toList() ?? def.blockedGenres,
+      // Use containsKey so an explicitly-saved empty list [] stays empty and
+      // never falls back to the built-in defaults (Adult, Ecchi, Hentai, Smut).
+      // Defaults are only used when the key is completely absent (first launch).
+      blockedGenres: json.containsKey('blockedGenres')
+          ? (json['blockedGenres'] as List).map((e) => e.toString()).toList()
+          : def.blockedGenres,
       discoverGenres: (json['discoverGenres'] as List?)?.map((e) => e.toString()).toList() ?? def.discoverGenres,
       discoverSeason: json['discoverSeason'] as String?,
       discoverYears: (json['discoverYears'] as List?)?.map((e) => (e as num).toInt()).toList() ?? def.discoverYears,
