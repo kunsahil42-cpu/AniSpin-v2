@@ -327,9 +327,14 @@ class FilteredMediaState {
 class FilteredMediaNotifier extends StateNotifier<FilteredMediaState> {
   final DiscoverRepository _repository;
   final DiscoverFilters _filters;
+  final Set<String> _blockedLower;
 
-  FilteredMediaNotifier(this._repository, this._filters)
-      : super(const FilteredMediaState(
+  static const int _targetPageSize = 20;
+  static const int _maxFetchesPerCall = 5;
+
+  FilteredMediaNotifier(this._repository, this._filters, List<String> blockedGenres)
+      : _blockedLower = blockedGenres.map((b) => b.toLowerCase()).toSet(),
+        super(const FilteredMediaState(
           items: [],
           page: 1,
           isLoading: false,
@@ -339,18 +344,46 @@ class FilteredMediaNotifier extends StateNotifier<FilteredMediaState> {
     fetchNextPage();
   }
 
+  bool _isBlocked(DiscoverMediaModel item) {
+    if (_blockedLower.isEmpty) return false;
+    return item.genres.any((g) => _blockedLower.contains(g.toLowerCase()));
+  }
+
   Future<void> fetchNextPage() async {
     if (state.isLoading || !state.hasNextPage) return;
 
     state = state.copyWith(isLoading: true, hasError: false);
 
     try {
-      final newItems = await _repository.fetchFilteredMedia(state.page, _filters);
+      final accumulated = <DiscoverMediaModel>[];
+      int currentPage = state.page;
+      bool hasNextPage = true;
+      int fetchCount = 0;
+
+      // Keep fetching pages until we have enough unblocked items
+      while (accumulated.length < _targetPageSize &&
+          hasNextPage &&
+          fetchCount < _maxFetchesPerCall) {
+        final raw = await _repository.fetchFilteredMedia(currentPage, _filters);
+        fetchCount++;
+        currentPage++;
+        hasNextPage = raw.length >= _targetPageSize;
+
+        for (final item in raw) {
+          if (!_isBlocked(item)) {
+            accumulated.add(item);
+          }
+        }
+
+        // If the raw page was empty or smaller than a full page, no more data
+        if (raw.isEmpty) break;
+      }
+
       state = state.copyWith(
-        items: [...state.items, ...newItems],
-        page: state.page + 1,
+        items: [...state.items, ...accumulated],
+        page: currentPage,
         isLoading: false,
-        hasNextPage: newItems.length >= 20,
+        hasNextPage: hasNextPage,
         hasError: false,
       );
     } catch (e) {
@@ -361,5 +394,6 @@ class FilteredMediaNotifier extends StateNotifier<FilteredMediaState> {
 
 final filteredMediaProvider = StateNotifierProvider.family<FilteredMediaNotifier, FilteredMediaState, DiscoverFilters>((ref, filters) {
   final repository = ref.read(discoverRepositoryProvider);
-  return FilteredMediaNotifier(repository, filters);
+  final settings = ref.watch(settingsNotifierProvider);
+  return FilteredMediaNotifier(repository, filters, settings.blockedGenres);
 });

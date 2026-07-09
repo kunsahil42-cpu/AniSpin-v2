@@ -49,34 +49,59 @@ final discoverListProvider =
     FutureProvider.family<
         List<DiscoverAnimeModel>,
         DiscoverMode>((ref, mode) async {
-  final list = await ref
-      .read(discoverRepositoryProvider)
-      .getAnimeList(mode);
-
+  final repo = ref.read(discoverRepositoryProvider);
   final settings = ref.watch(settingsNotifierProvider);
   final blocked = settings.blockedGenres;
-  if (blocked.isEmpty) return list;
+
+  if (blocked.isEmpty) {
+    return repo.getAnimeList(mode);
+  }
 
   final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
-  return list.where((item) {
-    return !item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
-  }).toList();
+  bool _isBlocked(DiscoverAnimeModel item) =>
+      item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
+
+  const targetCount = 20;
+  const maxPages = 4;
+
+  final accumulated = <DiscoverAnimeModel>[];
+  for (int page = 1; page <= maxPages; page++) {
+    final raw = await repo.getAnimeList(mode, page: page);
+    for (final item in raw) {
+      if (!_isBlocked(item)) accumulated.add(item);
+    }
+    // Stop early if we have enough or API returned fewer than a full page
+    if (accumulated.length >= targetCount || raw.length < 20) break;
+  }
+  return accumulated;
 });
 
 final discoverMangaListProvider =
     FutureProvider.family<
         List<DiscoverMangaModel>,
         DiscoverMode>((ref, mode) async {
-  final list = await ref
-      .read(discoverRepositoryProvider)
-      .getMangaList(mode);
-
+  final repo = ref.read(discoverRepositoryProvider);
   final settings = ref.watch(settingsNotifierProvider);
   final blocked = settings.blockedGenres;
-  if (blocked.isEmpty) return list;
+
+  if (blocked.isEmpty) {
+    return repo.getMangaList(mode);
+  }
 
   final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
-  return list.where((item) {
-    return !item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
-  }).toList();
-});
+  bool _isBlocked(DiscoverMangaModel item) =>
+      item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
+
+  const targetCount = 20;
+  const maxPages = 4;
+
+  final accumulated = <DiscoverMangaModel>[];
+  for (int page = 1; page <= maxPages; page++) {
+    final raw = await repo.getMangaList(mode, page: page);
+    for (final item in raw) {
+      if (!_isBlocked(item)) accumulated.add(item);
+    }
+    if (accumulated.length >= targetCount || raw.length < 20) break;
+  }
+  return accumulated;
+});

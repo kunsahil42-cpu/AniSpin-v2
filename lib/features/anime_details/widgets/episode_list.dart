@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../tracker/providers/tracker_providers.dart';
 import '../models/anime_details_model.dart';
+import '../providers/anime_details_provider.dart';
 
 class EpisodeList extends ConsumerStatefulWidget {
   final int animeId;
@@ -150,9 +151,53 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
           }
         }
 
+        final newEpisodes = ref.watch(newEpisodesProvider(widget.animeId));
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (newEpisodes.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.new_releases_rounded,
+                          color: theme.colorScheme.primary, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'New Episode Available! (Episode ${newEpisodes.join(", ")})',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close, size: 18, color: theme.colorScheme.primary),
+                        onPressed: () {
+                          ref.read(newEpisodesProvider(widget.animeId).notifier).state = {};
+                        },
+                        style: IconButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             // ── Next Airing Episode Banner ───────────────────────────────────
             if (widget.nextAiringEpisode != null && _showAiringBanner)
               Padding(
@@ -426,6 +471,26 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                                       child: CircleAvatar(
                                         radius: 3,
                                         backgroundColor: Colors.green,
+                                      ),
+                                    ),
+                                  if (newEpisodes.contains(episodeNum))
+                                    Positioned(
+                                      top: 4,
+                                      left: 4,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          color: theme.colorScheme.error,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          'NEW',
+                                          style: theme.textTheme.labelSmall?.copyWith(
+                                            color: theme.colorScheme.onError,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 7,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                 ],

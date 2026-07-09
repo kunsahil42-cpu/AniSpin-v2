@@ -44,10 +44,30 @@ class MangaChaptersNotifier extends FamilyAsyncNotifier<List<ChapterModel>, int>
   }
 
   Future<List<ChapterModel>> _fetchAndCacheChapters(int mangaId) async {
+    final currentChapters = state.valueOrNull ?? [];
     final chapters = await _fetchFromNetwork(mangaId);
-    await ChapterCache.saveChapters(mangaId, chapters);
-    state = AsyncValue.data(chapters);
-    return chapters;
+
+    // Merge network chapters with existing cached chapters to avoid duplicates
+    final Map<int, ChapterModel> mergedMap = {
+      for (final c in currentChapters) c.number: c,
+    };
+
+    final newChs = <int>{};
+    for (final c in chapters) {
+      if (!mergedMap.containsKey(c.number)) {
+        newChs.add(c.number);
+      }
+      mergedMap[c.number] = c;
+    }
+
+    if (newChs.isNotEmpty && currentChapters.isNotEmpty) {
+      ref.read(newChaptersProvider(mangaId).notifier).state = newChs;
+    }
+
+    final mergedList = mergedMap.values.toList()..sort((a, b) => a.number.compareTo(b.number));
+    await ChapterCache.saveChapters(mangaId, mergedList);
+    state = AsyncValue.data(mergedList);
+    return mergedList;
   }
 
   Future<List<ChapterModel>> _fetchFromNetwork(int mangaId) async {
@@ -61,3 +81,5 @@ final mangaChaptersProvider =
     AsyncNotifierProvider.family<MangaChaptersNotifier, List<ChapterModel>, int>(() {
   return MangaChaptersNotifier();
 });
+
+final newChaptersProvider = StateProvider.family<Set<int>, int>((ref, mangaId) => {});

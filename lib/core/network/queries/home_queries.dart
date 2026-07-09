@@ -1,8 +1,8 @@
 class HomeQueries {
   // 🔥 Trending — ranked by AniList's live trending score (recalculated hourly)
   static const String trendingAnime = r'''
-query TrendingAnime {
-  Page(page: 1, perPage: 20) {
+query TrendingAnime($page: Int) {
+  Page(page: $page, perPage: 20) {
     media(
       type: ANIME
       sort: TRENDING_DESC
@@ -26,8 +26,8 @@ query TrendingAnime {
 
   // 🌸 This Season — current season is resolved dynamically at call time
   static const String thisSeasonAnime = r'''
-query ThisSeasonAnime($season: MediaSeason, $seasonYear: Int) {
-  Page(page: 1, perPage: 20) {
+query ThisSeasonAnime($season: MediaSeason, $seasonYear: Int, $page: Int) {
+  Page(page: $page, perPage: 20) {
     media(
       type: ANIME
       season: $season
@@ -56,8 +56,8 @@ query ThisSeasonAnime($season: MediaSeason, $seasonYear: Int) {
   //   startDate_greater is passed at call time (30 days ago) so only genuinely
   //   recent shows appear rather than long-running classics.
   static const String justReleasedAnime = r'''
-query JustReleasedAnime($startDateGreater: FuzzyDateInt) {
-  Page(page: 1, perPage: 20) {
+query JustReleasedAnime($startDateGreater: FuzzyDateInt, $page: Int) {
+  Page(page: $page, perPage: 20) {
     media(
       type: ANIME
       status: RELEASING
@@ -84,8 +84,8 @@ query JustReleasedAnime($startDateGreater: FuzzyDateInt) {
   // 🏆 Popular This Week — highest rated and most popular airing anime of the current week.
   //   Uses TRENDING_DESC to capture active weekly popularity and SCORE_DESC for quality.
   static const String popularThisWeek = r'''
-query PopularThisWeekAnime {
-  Page(page: 1, perPage: 20) {
+query PopularThisWeekAnime($page: Int) {
+  Page(page: $page, perPage: 20) {
     media(
       type: ANIME
       status: RELEASING

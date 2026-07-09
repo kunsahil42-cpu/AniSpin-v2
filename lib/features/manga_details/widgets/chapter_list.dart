@@ -45,6 +45,7 @@ class _ChapterListState extends ConsumerState<ChapterList> {
     final theme = Theme.of(context);
     final progressAsync = ref.watch(mangaProgressProvider(widget.mangaId));
     final chaptersAsync = ref.watch(mangaChaptersProvider(widget.mangaId));
+    final newChapters = ref.watch(newChaptersProvider(widget.mangaId));
 
     return chaptersAsync.when(
       loading: () => const _SkeletonChapters(),
@@ -91,6 +92,47 @@ class _ChapterListState extends ConsumerState<ChapterList> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (newChapters.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.new_releases_rounded,
+                              color: theme.colorScheme.primary, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'New Chapters Available! (Chapter ${newChapters.join(", ")})',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.close, size: 18, color: theme.colorScheme.primary),
+                            onPressed: () {
+                              ref.read(newChaptersProvider(widget.mangaId).notifier).state = {};
+                            },
+                            style: IconButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -148,6 +190,7 @@ class _ChapterListState extends ConsumerState<ChapterList> {
                             ascending: _ascending,
                             currentChapter: currentChapter,
                             completed: completed,
+                            newChapters: newChapters,
                             onToggle: () => _toggle(group.block),
                             onOpenChapter: _openChapter,
                           ),
@@ -258,6 +301,7 @@ class _ChapterGroupTile extends StatelessWidget {
   final bool ascending;
   final int currentChapter;
   final List<int> completed;
+  final Set<int> newChapters;
   final VoidCallback onToggle;
   final void Function(ChapterModel) onOpenChapter;
 
@@ -267,6 +311,7 @@ class _ChapterGroupTile extends StatelessWidget {
     required this.ascending,
     required this.currentChapter,
     required this.completed,
+    required this.newChapters,
     required this.onToggle,
     required this.onOpenChapter,
   });
@@ -407,6 +452,7 @@ class _ChapterGroupTile extends StatelessWidget {
                               chapter: chapter,
                               isCurrent: chapter.number == currentChapter,
                               isRead: completed.contains(chapter.number),
+                              isNew: newChapters.contains(chapter.number),
                               onTap: () => onOpenChapter(chapter),
                             ),
                           ),
@@ -425,12 +471,14 @@ class _ChapterRow extends StatelessWidget {
   final ChapterModel chapter;
   final bool isCurrent;
   final bool isRead;
+  final bool isNew;
   final VoidCallback onTap;
 
   const _ChapterRow({
     required this.chapter,
     required this.isCurrent,
     required this.isRead,
+    required this.isNew,
     required this.onTap,
   });
 
@@ -494,14 +542,38 @@ class _ChapterRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      chapter.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: isCurrent ? primaryColor : null,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            chapter.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: isCurrent ? primaryColor : null,
+                            ),
+                          ),
+                        ),
+                        if (isNew) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.error,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'NEW',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onError,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 9,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Container(

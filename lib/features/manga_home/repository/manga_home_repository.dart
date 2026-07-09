@@ -27,10 +27,11 @@ class MangaHomeRepository {
 
   static const Duration _cacheDuration = Duration(minutes: 5);
 
-  Future<List<MangaHomeModel>> getMangaList(MangaHomeSection section) async {
+  Future<List<MangaHomeModel>> getMangaList(MangaHomeSection section, {int page = 1}) async {
     final cached = _cache[section];
     final cachedAt = _cacheTime[section];
-    if (cached != null &&
+    if (page == 1 &&
+        cached != null &&
         cachedAt != null &&
         DateTime.now().difference(cachedAt) < _cacheDuration) {
       return cached;
@@ -43,30 +44,30 @@ class MangaHomeRepository {
       switch (section) {
         case MangaHomeSection.trending:
           query = MangaQueries.trendingManga;
-          variables = {'page': 1};
+          variables = {'page': page};
           break;
         case MangaHomeSection.popular:
           // Best Ongoing — highest rated releasing manga (SCORE_DESC)
           query = MangaQueries.popularManga;
-          variables = {'page': 1};
+          variables = {'page': page};
           break;
         case MangaHomeSection.latestReleases:
           query = MangaQueries.latestReleasesManga;
-          variables = {'page': 1};
+          variables = {'page': page};
           break;
         case MangaHomeSection.latest:
           // Top Rated Picks — highest rated manga from the last month.
           // startDateGreater is the first day of last month (FuzzyDateInt).
           query = MangaQueries.latestManga;
           variables = {
-            'page': 1,
+            'page': page,
             'startDateGreater': _lastMonthFuzzy(),
           };
           break;
         case MangaHomeSection.recommended:
           // Popular This Week — trending manga from the current week.
           query = MangaQueries.recommendedManga;
-          variables = {'page': 1};
+          variables = {'page': page};
           break;
       }
 
@@ -86,8 +87,10 @@ class MangaHomeRepository {
       final list = media
           .map<MangaHomeModel>((item) => MangaHomeModel.fromJson(item))
           .toList();
-      _cache[section] = list;
-      _cacheTime[section] = DateTime.now();
+      if (page == 1) {
+        _cache[section] = list;
+        _cacheTime[section] = DateTime.now();
+      }
       return list;
     } catch (_) {
       // AniList failed (403 / 429 / 500 / network) → fallback strategies.

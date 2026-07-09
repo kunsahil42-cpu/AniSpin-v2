@@ -105,6 +105,61 @@ class AnimeDetailsModel {
           : null,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'idMal': idMal,
+      'romajiTitle': romajiTitle,
+      'englishTitle': englishTitle,
+      'nativeTitle': nativeTitle,
+      'description': description,
+      'bannerImage': bannerImage,
+      'coverImage': coverImage,
+      'averageScore': averageScore,
+      'episodes': episodes,
+      'status': status,
+      'genres': genres,
+      'season': season,
+      'seasonYear': seasonYear,
+      'duration': duration,
+      'format': format,
+      'popularity': popularity,
+      'studio': studio,
+      'streamingEpisodes': streamingEpisodes.map((e) => e.toJson()).toList(),
+      'nextAiringEpisode': nextAiringEpisode?.toJson(),
+    };
+  }
+
+  factory AnimeDetailsModel.fromCacheJson(Map<String, dynamic> json) {
+    return AnimeDetailsModel(
+      id: json['id'] as int,
+      idMal: json['idMal'] as int?,
+      romajiTitle: json['romajiTitle'] as String? ?? '',
+      englishTitle: json['englishTitle'] as String?,
+      nativeTitle: json['nativeTitle'] as String?,
+      description: json['description'] as String? ?? '',
+      bannerImage: json['bannerImage'] as String? ?? '',
+      coverImage: json['coverImage'] as String? ?? '',
+      averageScore: json['averageScore'] as int?,
+      episodes: json['episodes'] as int?,
+      status: json['status'] as String?,
+      genres: List<String>.from(json['genres'] as Iterable? ?? const []),
+      season: json['season'] as String?,
+      seasonYear: json['seasonYear'] as int?,
+      duration: json['duration'] as int?,
+      format: json['format'] as String?,
+      popularity: json['popularity'] as int?,
+      studio: json['studio'] as String? ?? '',
+      streamingEpisodes: (json['streamingEpisodes'] as List?)
+              ?.map((e) => StreamingEpisode.fromCacheJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      nextAiringEpisode: json['nextAiringEpisode'] != null
+          ? NextAiringEpisode.fromCacheJson(json['nextAiringEpisode'] as Map<String, dynamic>)
+          : null,
+    );
+  }
 }
 
 class StreamingEpisode {
@@ -128,6 +183,24 @@ class StreamingEpisode {
       site: json['site']?.toString() ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'title': title,
+      'thumbnail': thumbnail,
+      'url': url,
+      'site': site,
+    };
+  }
+
+  factory StreamingEpisode.fromCacheJson(Map<String, dynamic> json) {
+    return StreamingEpisode(
+      title: json['title'] as String? ?? '',
+      thumbnail: json['thumbnail'] as String? ?? '',
+      url: json['url'] as String? ?? '',
+      site: json['site'] as String? ?? '',
+    );
+  }
 }
 
 class NextAiringEpisode {
@@ -143,6 +216,20 @@ class NextAiringEpisode {
     return NextAiringEpisode(
       episode: json['episode'] ?? 0,
       airingAt: json['airingAt'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'episode': episode,
+      'airingAt': airingAt,
+    };
+  }
+
+  factory NextAiringEpisode.fromCacheJson(Map<String, dynamic> json) {
+    return NextAiringEpisode(
+      episode: json['episode'] as int? ?? 0,
+      airingAt: json['airingAt'] as int? ?? 0,
     );
   }
 }

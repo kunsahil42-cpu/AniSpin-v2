@@ -13,9 +13,11 @@ class AnimeDetailsRepository {
   // In-memory session cache of merged models by id.
   final Map<int, AnimeDetailsModel> _cache = {};
 
-  Future<AnimeDetailsModel> getAnimeDetails(int id) async {
-    final cached = _cache[id];
-    if (cached != null) return cached;
+  Future<AnimeDetailsModel> getAnimeDetails(int id, {bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final cached = _cache[id];
+      if (cached != null) return cached;
+    }
 
     AnimeDetailsModel model;
     try {

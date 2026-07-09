@@ -21,9 +21,11 @@ class HomeRepository {
   Future<List<HomeAnimeModel>> getAnime(
     HomeSection section, {
     bool forceRefresh = false,
+    int page = 1,
   }) async {
-    // Return cached data if valid
+    // Return cached data if valid (only for page 1 to avoid cache pollution)
     if (!forceRefresh &&
+        page == 1 &&
         _cache.containsKey(section) &&
         _cacheTime.containsKey(section)) {
       final age = DateTime.now().difference(
@@ -40,7 +42,7 @@ class HomeRepository {
 
       switch (section) {
         case HomeSection.trending:
-          result = await _api.getTrendingAnime();
+          result = await _api.getTrendingAnime(page: page);
           break;
 
         case HomeSection.thisSeason:
@@ -48,20 +50,21 @@ class HomeRepository {
           result = await _api.getThisSeasonAnime(
             season: season,
             seasonYear: seasonYear,
+            page: page,
           );
           break;
 
         case HomeSection.justReleased:
-          result = await _api.getJustReleasedAnime();
+          result = await _api.getJustReleasedAnime(page: page);
           break;
 
         case HomeSection.popularThisWeek:
-          result = await _api.getPopularThisWeek();
+          result = await _api.getPopularThisWeek(page: page);
           break;
 
         case HomeSection.continueWatching:
           // Temporary until implemented
-          result = await _api.getTrendingAnime();
+          result = await _api.getTrendingAnime(page: page);
           break;
       }
 
@@ -77,9 +80,11 @@ class HomeRepository {
           )
           .toList();
 
-      // Save in memory cache
-      _cache[section] = anime;
-      _cacheTime[section] = DateTime.now();
+      // Save in memory cache (only for page 1)
+      if (page == 1) {
+        _cache[section] = anime;
+        _cacheTime[section] = DateTime.now();
+      }
 
       return anime;
     } catch (_) {
@@ -87,8 +92,10 @@ class HomeRepository {
       // If Jikan also fails, the AppFailure propagates and the UI shows a clean
       // error/retry state — never mock data.
       final anime = await _fetchAnimeFromJikan(section);
-      _cache[section] = anime;
-      _cacheTime[section] = DateTime.now();
+      if (page == 1) {
+        _cache[section] = anime;
+        _cacheTime[section] = DateTime.now();
+      }
       return anime;
     }
   }

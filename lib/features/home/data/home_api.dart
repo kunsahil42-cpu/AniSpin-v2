@@ -4,12 +4,13 @@ import '../../../core/network/graphql_service.dart';
 import '../../../core/network/queries/home_queries.dart';
 
 class HomeApi {
-  Future<QueryResult> getTrendingAnime() {
+  Future<QueryResult> getTrendingAnime({int page = 1}) {
     return GraphQLService.client.query(
       QueryOptions(
         document: gql(
           HomeQueries.trendingAnime,
         ),
+        variables: {'page': page},
         fetchPolicy: FetchPolicy.networkOnly,
       ),
     );
@@ -18,6 +19,7 @@ class HomeApi {
   Future<QueryResult> getThisSeasonAnime({
     required String season,
     required int seasonYear,
+    int page = 1,
   }) {
     return GraphQLService.client.query(
       QueryOptions(
@@ -27,6 +29,7 @@ class HomeApi {
         variables: {
           'season': season,
           'seasonYear': seasonYear,
+          'page': page,
         },
         fetchPolicy: FetchPolicy.networkOnly,
       ),
@@ -38,7 +41,7 @@ class HomeApi {
   /// The [startDateGreater] AniList FuzzyDateInt (YYYYMMDD0 format) is
   /// computed here so results are always restricted to the past 30 days,
   /// ensuring genuinely new premieres appear rather than classic long-runners.
-  Future<QueryResult> getJustReleasedAnime() {
+  Future<QueryResult> getJustReleasedAnime({int page = 1}) {
     final startDateGreater = _fuzzyDate(
       DateTime.now().subtract(const Duration(days: 30)),
     );
@@ -47,7 +50,7 @@ class HomeApi {
         document: gql(
           HomeQueries.justReleasedAnime,
         ),
-        variables: {'startDateGreater': startDateGreater},
+        variables: {'startDateGreater': startDateGreater, 'page': page},
         fetchPolicy: FetchPolicy.networkOnly,
       ),
     );
@@ -57,12 +60,13 @@ class HomeApi {
   ///
   /// Uses TRENDING_DESC and SCORE_DESC to capture currently active/airing
   /// shows that are highly rated.
-  Future<QueryResult> getPopularThisWeek() {
+  Future<QueryResult> getPopularThisWeek({int page = 1}) {
     return GraphQLService.client.query(
       QueryOptions(
         document: gql(
           HomeQueries.popularThisWeek,
         ),
+        variables: {'page': page},
         fetchPolicy: FetchPolicy.networkOnly,
       ),
     );

@@ -14,18 +14,30 @@ final homeSectionProvider =
         List<HomeAnimeModel>,
         HomeSection>(
   (ref, section) async {
-    final list = await ref
-        .read(homeRepositoryProvider)
-        .getAnime(section);
-
+    final repo = ref.read(homeRepositoryProvider);
     final settings = ref.watch(settingsNotifierProvider);
     final blocked = settings.blockedGenres;
-    if (blocked.isEmpty) return list;
+
+    if (blocked.isEmpty) {
+      return repo.getAnime(section);
+    }
 
     final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
-    return list.where((item) {
-      return !item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
-    }).toList();
+    bool _isBlocked(HomeAnimeModel item) =>
+        item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
+
+    const targetCount = 10;
+    const maxPages = 4;
+
+    final accumulated = <HomeAnimeModel>[];
+    for (int page = 1; page <= maxPages; page++) {
+      final raw = await repo.getAnime(section, page: page);
+      for (final item in raw) {
+        if (!_isBlocked(item)) accumulated.add(item);
+      }
+      if (accumulated.length >= targetCount || raw.length < 20) break;
+    }
+    return accumulated;
   },
 );
 
