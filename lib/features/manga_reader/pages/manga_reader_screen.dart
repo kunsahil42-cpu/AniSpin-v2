@@ -1,4 +1,5 @@
 // ignore_for_file: deprecated_member_use
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-import '../../../core/network/mangadex/mangadex_api.dart';
+import '../../../core/source_fallback/source_fallback_manager.dart';
 import '../../manga_details/providers/manga_details_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../settings/models/app_settings.dart';
@@ -52,6 +53,7 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
   int _currentHorizontalPage = 0;
   int _currentVerticalPage = 0;
   final List<GlobalKey> _pageKeys = [];
+  Timer? _progressDebounceTimer;
 
   int get _currentPage {
     final settings = ref.read(settingsNotifierProvider);
@@ -70,6 +72,7 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
 
   @override
   void dispose() {
+    _progressDebounceTimer?.cancel();
     _pageController?.dispose();
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
@@ -79,10 +82,16 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
   void _scrollListener() {
     if (_pages.isEmpty || !mounted) return;
 
-    int activeIndex = 0;
+    int activeIndex = _currentVerticalPage;
     double minDistance = double.infinity;
+    bool foundInWindow = false;
 
-    for (int i = 0; i < _pageKeys.length; i++) {
+    // 1. Check a localized window of +/- 3 pages around _currentVerticalPage first
+    final start = (_currentVerticalPage - 3).clamp(0, _pageKeys.length - 1);
+    final end = (_currentVerticalPage + 3).clamp(0, _pageKeys.length - 1);
+
+    for (int i = start; i <= end; i++) {
+      if (i >= _pageKeys.length) continue;
       final key = _pageKeys[i];
       final context = key.currentContext;
       if (context != null) {
@@ -93,6 +102,29 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
           if (distance < minDistance) {
             minDistance = distance;
             activeIndex = i;
+            foundInWindow = true;
+          }
+        }
+      }
+    }
+
+    // 2. If not found in the localized window (e.g. after a large jump), check the rest
+    if (!foundInWindow || minDistance > MediaQuery.of(context).size.height) {
+      for (int i = 0; i < _pageKeys.length; i++) {
+        // Skip the window we already checked
+        if (i >= start && i <= end) continue;
+
+        final key = _pageKeys[i];
+        final context = key.currentContext;
+        if (context != null) {
+          final box = context.findRenderObject() as RenderBox?;
+          if (box != null && box.attached) {
+            final position = box.localToGlobal(Offset.zero);
+            final distance = position.dy.abs();
+            if (distance < minDistance) {
+              minDistance = distance;
+              activeIndex = i;
+            }
           }
         }
       }
@@ -103,8 +135,17 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
         _currentVerticalPage = activeIndex;
       });
       _preloadPages(activeIndex);
-      _updateReadingProgress(activeIndex);
+      _debouncedUpdateReadingProgress(activeIndex);
     }
+  }
+
+  void _debouncedUpdateReadingProgress(int pageIndex) {
+    _progressDebounceTimer?.cancel();
+    _progressDebounceTimer = Timer(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        _updateReadingProgress(pageIndex);
+      }
+    });
   }
 
   void _scrollToVerticalPage(int pageIndex) {
@@ -148,7 +189,7 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
         orElse: () => throw Exception('Chapter ${widget.chapterNumber} not found'),
       );
 
-      final mangaDex = ref.read(mangaDexApiProvider);
+      final fallbackManager = ref.read(sourceFallbackManagerProvider);
       final candidates = [chapter, ...chapter.alternatives];
       final settings = ref.read(settingsNotifierProvider);
       final useDataSaver = settings.imageQuality != ImageQualityOption.high;
@@ -169,7 +210,11 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
         if (chapterId == null) continue;
 
         try {
-          final fetchedPages = await mangaDex.getChapterPages(chapterId, useDataSaver: useDataSaver);
+          final fetchedPages = await fallbackManager.getChapterPages(
+            chapterId: chapterId,
+            source: candidate.source,
+            useDataSaver: useDataSaver,
+          );
           if (fetchedPages.isNotEmpty) {
             pages = fetchedPages;
             loaded = true;
@@ -238,21 +283,38 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
   void _preloadPages(int currentIndex) {
     if (_pages.isEmpty || !mounted) return;
 
+    // Preload current page, next 3 pages, and previous 1 page
     final indicesToPreload = [
       currentIndex,
       currentIndex + 1,
       currentIndex + 2,
+      currentIndex + 3,
       currentIndex - 1,
     ];
 
     for (final index in indicesToPreload) {
       if (index >= 0 && index < _pages.length) {
         final url = _pages[index];
-        if (ReaderImage.isLocal(url)) {
-          precacheImage(FileImage(File(url)), context).catchError((_) {});
-        } else {
-          precacheImage(CachedNetworkImageProvider(url), context).catchError((_) {});
-        }
+        final ImageProvider provider = ReaderImage.isLocal(url)
+            ? FileImage(File(url))
+            : CachedNetworkImageProvider(url);
+        precacheImage(provider, context).catchError((_) {});
+      }
+    }
+
+    _evictFarPages(currentIndex);
+  }
+
+  void _evictFarPages(int currentIndex) {
+    if (_pages.isEmpty) return;
+    const keepWindow = 6; // Keep 6 pages behind and 6 pages ahead decoded in memory
+    for (int i = 0; i < _pages.length; i++) {
+      if (i < currentIndex - keepWindow || i > currentIndex + keepWindow) {
+        final url = _pages[i];
+        final ImageProvider provider = ReaderImage.isLocal(url)
+            ? FileImage(File(url))
+            : CachedNetworkImageProvider(url);
+        provider.evict().catchError((_) => false);
       }
     }
   }
@@ -518,41 +580,34 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
                             _showAppBar = index > 0;
                           });
                           _preloadPages(index);
-                          _updateReadingProgress(index);
+                          _debouncedUpdateReadingProgress(index);
                         },
                         itemCount: _pages.length,
                         itemBuilder: (context, index) {
                           final pageUrl = _pages[index];
-
-                          return ZoomableWidget(
+                          return MangaPageItem(
+                            key: ValueKey(pageUrl),
+                            pageUrl: pageUrl,
                             doubleTapZoomEnabled: doubleTapZoomEnabled,
-                            child: Center(
-                              child: ReaderImage(
-                                source: pageUrl,
-                                memCacheWidth: cacheWidth,
-                              ),
-                            ),
+                            cacheWidth: cacheWidth,
+                            centerChild: true,
                           );
                         },
                       )
                     : ListView.builder(
                         controller: _scrollController,
-                        cacheExtent: 3000,
+                        cacheExtent: 1500,
                         physics: const BouncingScrollPhysics(),
                         padding: EdgeInsets.zero,
                         itemCount: _pages.length,
                         itemBuilder: (context, index) {
                           final pageUrl = _pages[index];
-
-                          return ZoomableWidget(
+                          return MangaPageItem(
+                            key: ValueKey(pageUrl),
+                            pageUrl: pageUrl,
                             doubleTapZoomEnabled: doubleTapZoomEnabled,
-                            child: Container(
-                              key: _pageKeys[index],
-                              child: ReaderImage(
-                                source: pageUrl,
-                                memCacheWidth: cacheWidth,
-                              ),
-                            ),
+                            cacheWidth: cacheWidth,
+                            pageKey: _pageKeys[index],
                           );
                         },
                       ),
@@ -714,6 +769,41 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Optimized representation of a single manga page to enable lazy rendering
+/// and skip rebuilding when parent offsets or states change.
+class MangaPageItem extends StatelessWidget {
+  final String pageUrl;
+  final bool doubleTapZoomEnabled;
+  final int cacheWidth;
+  final Key? pageKey;
+  final bool centerChild;
+
+  const MangaPageItem({
+    super.key,
+    required this.pageUrl,
+    required this.doubleTapZoomEnabled,
+    required this.cacheWidth,
+    this.pageKey,
+    this.centerChild = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final imageWidget = Container(
+      key: pageKey,
+      child: ReaderImage(
+        source: pageUrl,
+        memCacheWidth: cacheWidth,
+      ),
+    );
+
+    return ZoomableWidget(
+      doubleTapZoomEnabled: doubleTapZoomEnabled,
+      child: centerChild ? Center(child: imageWidget) : imageWidget,
     );
   }
 }

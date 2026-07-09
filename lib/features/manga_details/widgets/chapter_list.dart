@@ -63,7 +63,7 @@ class _ChapterListState extends ConsumerState<ChapterList> {
             padding: EdgeInsets.all(16.0),
             child: Center(
               child: Text(
-                'No chapters available.',
+                'No English chapters available.',
                 style: TextStyle(color: Colors.white70),
               ),
             ),

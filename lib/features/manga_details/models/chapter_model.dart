@@ -11,6 +11,7 @@ class ChapterModel {
   final bool isExternal;
   final String? externalUrl;
   final List<ChapterModel> alternatives;
+  final String source;
 
   ChapterModel({
     this.id,
@@ -25,6 +26,7 @@ class ChapterModel {
     this.isExternal = false,
     this.externalUrl,
     this.alternatives = const [],
+    this.source = 'mangadex',
   });
 
   factory ChapterModel.mock(int mangaId, int chapterNumber) {
@@ -48,6 +50,7 @@ class ChapterModel {
       isExternal: false,
       externalUrl: null,
       alternatives: const [],
+      source: 'mangadex',
     );
   }
 
@@ -65,6 +68,7 @@ class ChapterModel {
       'isExternal': isExternal,
       'externalUrl': externalUrl,
       'alternatives': alternatives.map((c) => c.toJson()).toList(),
+      'source': source,
     };
   }
 
@@ -85,6 +89,7 @@ class ChapterModel {
               ?.map((item) => ChapterModel.fromJson(item as Map<String, dynamic>))
               .toList() ??
           const [],
+      source: json['source'] as String? ?? 'mangadex',
     );
   }
 }
