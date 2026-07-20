@@ -31,6 +31,7 @@ class AnimeDetailsModel {
   final String studio;
   final List<StreamingEpisode> streamingEpisodes;
   final NextAiringEpisode? nextAiringEpisode;
+  final bool isAdult;
 
   AnimeDetailsModel({
     required this.id,
@@ -53,6 +54,7 @@ class AnimeDetailsModel {
     required this.studio,
     this.streamingEpisodes = const [],
     this.nextAiringEpisode,
+    this.isAdult = false,
   });
 
   factory AnimeDetailsModel.fromJson(Map<String, dynamic> json) {
@@ -103,6 +105,8 @@ class AnimeDetailsModel {
       nextAiringEpisode: json['nextAiringEpisode'] != null
           ? NextAiringEpisode.fromJson(json['nextAiringEpisode'] as Map<String, dynamic>)
           : null,
+          
+      isAdult: json['isAdult'] as bool? ?? false,
     );
   }
 
@@ -128,6 +132,7 @@ class AnimeDetailsModel {
       'studio': studio,
       'streamingEpisodes': streamingEpisodes.map((e) => e.toJson()).toList(),
       'nextAiringEpisode': nextAiringEpisode?.toJson(),
+      'isAdult': isAdult,
     };
   }
 
@@ -158,6 +163,7 @@ class AnimeDetailsModel {
       nextAiringEpisode: json['nextAiringEpisode'] != null
           ? NextAiringEpisode.fromCacheJson(json['nextAiringEpisode'] as Map<String, dynamic>)
           : null,
+      isAdult: json['isAdult'] as bool? ?? false,
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../enums/home_section.dart';
 import '../models/home_anime_model.dart';
 import '../repository/home_repository.dart';
+import '../../../core/utils/genre_filter.dart';
 import '../../settings/providers/settings_provider.dart';
 
 final homeRepositoryProvider = Provider<HomeRepository>(
@@ -25,9 +26,8 @@ final homeSectionProvider =
       return repo.getAnime(section);
     }
 
-    final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
     bool isBlocked(HomeAnimeModel item) =>
-        item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
+        isMediaBlocked(genres: item.genres, isAdult: item.isAdult, blockedGenres: blocked);
 
     const targetCount = 10;
     const maxPages = 4;

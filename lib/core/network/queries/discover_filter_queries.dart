@@ -94,6 +94,7 @@ query DiscoverFilter($queryArgsStr) {
       episodes
       chapters
       genres
+      isAdult
       description(asHtml: false)
       status
     }

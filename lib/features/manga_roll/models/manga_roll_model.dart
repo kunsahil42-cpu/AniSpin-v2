@@ -11,6 +11,7 @@ class MangaRollModel {
   final List<String> genres;
   final String description;
   final String? status;
+  final bool isAdult;
 
   MangaRollModel({
     required this.id,
@@ -25,6 +26,7 @@ class MangaRollModel {
     required this.genres,
     required this.description,
     required this.status,
+    this.isAdult = false,
   });
 
   String get romajiTitle => title;
@@ -53,6 +55,7 @@ class MangaRollModel {
       genres: List<String>.from(json['genres'] ?? []),
       description: json['description'] ?? '',
       status: json['status'],
+      isAdult: json['isAdult'] as bool? ?? false,
     );
   }
 
@@ -103,6 +106,7 @@ class MangaRollModel {
       genres: genresList,
       description: j['synopsis'] ?? '',
       status: mediaStatus(j['status']),
+      isAdult: false,
     );
   }
 
@@ -153,6 +157,7 @@ class MangaRollModel {
       genres: genres.isEmpty ? genresList : genres,
       description: description.isEmpty ? (j['synopsis'] ?? '') : description,
       status: status ?? mediaStatus(j['status']),
+      isAdult: isAdult,
     );
   }
 }

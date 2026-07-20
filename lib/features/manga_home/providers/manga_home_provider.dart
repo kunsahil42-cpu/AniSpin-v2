@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/mangadex/mangadex_api.dart';
 import '../models/manga_home_model.dart';
 import '../repository/manga_home_repository.dart';
+import '../../../core/utils/genre_filter.dart';
 import '../../settings/providers/settings_provider.dart';
 
 final mangaHomeRepositoryProvider = Provider<MangaHomeRepository>((ref) {
@@ -22,9 +23,8 @@ final mangaHomeSectionProvider = FutureProvider.family<List<MangaHomeModel>, Man
     return repo.getMangaList(section);
   }
 
-  final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
   bool isBlocked(MangaHomeModel item) =>
-      item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
+      isMediaBlocked(genres: item.genres, isAdult: item.isAdult, blockedGenres: blocked);
 
   const targetCount = 10;
   const maxPages = 4;

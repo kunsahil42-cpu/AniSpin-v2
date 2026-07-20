@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../settings/models/app_settings.dart';
 import '../../settings/providers/settings_provider.dart';
+import '../../../core/utils/genre_filter.dart';
 import '../models/discover_filters.dart';
 import '../models/discover_media_model.dart';
 import '../repository/discover_repository.dart';
@@ -328,13 +329,13 @@ class FilteredMediaState {
 class FilteredMediaNotifier extends StateNotifier<FilteredMediaState> {
   final DiscoverRepository _repository;
   final DiscoverFilters _filters;
-  final Set<String> _blockedLower;
+  final List<String> _blockedGenres;
 
   static const int _targetPageSize = 20;
   static const int _maxFetchesPerCall = 5;
 
   FilteredMediaNotifier(this._repository, this._filters, List<String> blockedGenres)
-      : _blockedLower = blockedGenres.map((b) => b.toLowerCase()).toSet(),
+      : _blockedGenres = blockedGenres,
         super(const FilteredMediaState(
           items: [],
           page: 1,
@@ -346,10 +347,10 @@ class FilteredMediaNotifier extends StateNotifier<FilteredMediaState> {
   }
 
   bool _isBlocked(DiscoverMediaModel item) {
-    if (_blockedLower.isEmpty) return false;
-    final result = item.genres.any((g) => _blockedLower.contains(g.toLowerCase()));
+    if (_blockedGenres.isEmpty) return false;
+    final result = isMediaBlocked(genres: item.genres, isAdult: item.isAdult, blockedGenres: _blockedGenres);
     if (kDebugMode && result) {
-      debugPrint('[DiscoverFilters] Filtering out "${item.title}" — matched blocked genre in: ${item.genres}');
+      debugPrint('[DiscoverFilters] Filtering out "${item.title}" — matched blocked genre or isAdult: true');
     }
     return result;
   }

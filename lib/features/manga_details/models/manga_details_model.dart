@@ -28,6 +28,8 @@ class MangaDetailsModel {
   final int? popularity;
 
   final String author;
+  
+  final bool isAdult;
 
   MangaDetailsModel({
     required this.id,
@@ -46,6 +48,7 @@ class MangaDetailsModel {
     required this.format,
     required this.popularity,
     required this.author,
+    this.isAdult = false,
   });
 
   factory MangaDetailsModel.fromJson(
@@ -84,6 +87,8 @@ class MangaDetailsModel {
       format: json['format'],
 
       popularity: json['popularity'],
+
+      isAdult: json['isAdult'] as bool? ?? false,
 
       author:
           (json['staff']?['edges'] as List?)

@@ -5,6 +5,7 @@ class HomeAnimeModel {
   final int? averageScore;
   final int? episodes;
   final List<String> genres;
+  final bool isAdult;
 
   const HomeAnimeModel({
     required this.id,
@@ -13,6 +14,7 @@ class HomeAnimeModel {
     this.averageScore,
     this.episodes,
     required this.genres,
+    this.isAdult = false,
   });
 
   factory HomeAnimeModel.fromJson(Map<String, dynamic> json) {
@@ -27,6 +29,7 @@ class HomeAnimeModel {
       averageScore: json['averageScore'],
       episodes: json['episodes'],
       genres: List<String>.from(json['genres'] ?? []),
+      isAdult: json['isAdult'] as bool? ?? false,
     );
   }
 }

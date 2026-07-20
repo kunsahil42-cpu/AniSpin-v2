@@ -7,6 +7,7 @@ class AnimeModel {
   final int? episodes;
   final String? status;
   final List<String> genres;
+  final bool isAdult;
 
   AnimeModel({
     required this.id,
@@ -17,6 +18,7 @@ class AnimeModel {
     required this.episodes,
     required this.status,
     required this.genres,
+    this.isAdult = false,
   });
 
   factory AnimeModel.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,7 @@ class AnimeModel {
       episodes: json['episodes'],
       status: json['status'],
       genres: List<String>.from(json['genres'] ?? []),
+      isAdult: json['isAdult'] as bool? ?? false,
     );
   }
 }

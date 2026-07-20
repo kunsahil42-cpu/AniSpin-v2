@@ -16,6 +16,7 @@ class EpisodeList extends ConsumerStatefulWidget {
   final String bannerImage;
   final List<StreamingEpisode> streamingEpisodes;
   final NextAiringEpisode? nextAiringEpisode;
+  final ValueChanged<int>? onEpisodeSelected;
 
   const EpisodeList({
     super.key,
@@ -29,6 +30,7 @@ class EpisodeList extends ConsumerStatefulWidget {
     required this.bannerImage,
     required this.streamingEpisodes,
     this.nextAiringEpisode,
+    this.onEpisodeSelected,
   });
 
   @override
@@ -439,6 +441,10 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                           child: InkWell(
                             borderRadius: BorderRadius.circular(8),
                             onTap: () {
+                              if (widget.onEpisodeSelected != null) {
+                                widget.onEpisodeSelected!(episodeNum);
+                                return;
+                              }
                               final playDub = _selectedAudio == 'Dub';
                               context.push(
                                 '/anime/${widget.animeId}/play/$episodeNum',

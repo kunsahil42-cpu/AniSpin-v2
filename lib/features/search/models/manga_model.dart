@@ -7,6 +7,7 @@ class MangaModel {
   final int? chapters;
   final String? status;
   final List<String> genres;
+  final bool isAdult;
 
   MangaModel({
     required this.id,
@@ -17,6 +18,7 @@ class MangaModel {
     required this.chapters,
     required this.status,
     required this.genres,
+    this.isAdult = false,
   });
 
   factory MangaModel.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,7 @@ class MangaModel {
       chapters: json['chapters'],
       status: json['status'],
       genres: List<String>.from(json['genres'] ?? []),
+      isAdult: json['isAdult'] as bool? ?? false,
     );
   }
 }

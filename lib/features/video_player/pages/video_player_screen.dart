@@ -12,6 +12,7 @@ import '../../tracker/models/watch_progress.dart';
 import '../../tracker/providers/tracker_providers.dart';
 import '../../anime_details/models/stream_source_model.dart';
 import '../providers/stream_provider.dart';
+import '../providers/global_player_manager.dart';
 import '../../../core/error/app_failure.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../settings/models/app_settings.dart';
@@ -189,12 +190,43 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
 
   @override
   void deactivate() {
-    // Immediately stop and pause native playback during deactivation (screen transitions, popping)
-    // before dispose is scheduled. This guarantees zero background audio spill.
+    // Immediately stop native playback synchronously during deactivation (screen transitions, popping)
     if (_controller != null && _controller!.value.isPlaying) {
-      _controller!.pause();
+      try {
+        _controller!.pause();
+      } catch (_) {}
     }
     super.deactivate();
+  }
+
+  /// Completely stops playback, removes listeners, saves progress, and disposes
+  /// the current player controller before resetting the instance to null.
+  Future<void> _disposeCurrentPlayer({bool saveProgress = true}) async {
+    if (_controller != null) {
+      final oldController = _controller!;
+      _controller = null;
+
+      try {
+        if (oldController.value.isInitialized) {
+          oldController.pause();
+          if (saveProgress) {
+            final pos = oldController.value.position.inMilliseconds;
+            final dur = oldController.value.duration.inMilliseconds;
+            if (dur > 0) {
+              _saveWatchProgress(pos, dur, pos / dur, force: true);
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Error pausing player during disposal: $e');
+      }
+
+      oldController.removeListener(_videoListener);
+      await GlobalPlayerManager.disposeController(oldController);
+    } else {
+      await GlobalPlayerManager.disposeAnyActive();
+    }
+    _setWakelock(false);
   }
 
   @override
@@ -205,60 +237,9 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
     _controlsTimer?.cancel();
     _countdownTimer?.cancel();
     _indicatorTimer?.cancel();
-    
-    // Save progress immediately on dispose before closing the controller
-    if (_controller != null) {
-      final pos = _controller!.value.position.inMilliseconds;
-      final dur = _controller!.value.duration.inMilliseconds;
-      if (dur > 0) {
-        final percentage = pos / dur;
-        final repo = ref.read(watchProgressRepositoryProvider);
-        repo.getProgress(widget.animeId).then((existing) {
-          final progress = existing ?? WatchProgress()
-            ..animeId = widget.animeId
-            ..malId = widget.malId
-            ..romajiTitle = widget.romajiTitle
-            ..englishTitle = widget.englishTitle
-            ..coverImage = widget.coverImage
-            ..bannerImage = widget.bannerImage
-            ..totalEpisodes = widget.totalEpisodes;
-            
-          progress
-            ..lastWatchedEpisode = _currentEpisodeNumber
-            ..lastWatchedPosition = pos
-            ..lastWatchedDuration = dur
-            ..watchPercentage = percentage
-            ..lastWatchedSource = _isDub ? 'Anikoto (Dub)' : 'Anikoto (Sub)'
-            ..lastWatchedAudio = _isDub ? 'Dub' : 'Sub'
-            ..lastWatchedAt = DateTime.now();
 
-          if (progress.status == null) {
-            progress.status = 'Watching';
-          }
+    _disposeCurrentPlayer(saveProgress: true);
 
-          if (percentage > 0.90) {
-            final completed = List<int>.from(progress.completedEpisodes);
-            if (!completed.contains(_currentEpisodeNumber)) {
-              completed.add(_currentEpisodeNumber);
-              progress.completedEpisodes = completed;
-            }
-            if (widget.totalEpisodes > 0 && progress.completedEpisodes.length >= widget.totalEpisodes) {
-              progress.status = 'Completed';
-            }
-          }
-
-          repo.saveProgress(progress).then((_) {
-            ref.invalidate(animeProgressProvider(widget.animeId));
-            ref.invalidate(continueWatchingProvider);
-          });
-        });
-      }
-      
-      // Stop and release native resources properly
-      _controller!.pause();
-      _controller!.removeListener(_videoListener);
-      _controller!.dispose();
-    }
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -266,19 +247,51 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
     super.dispose();
   }
 
+  /// Switches playback to [episodeNum] by immediately stopping and disposing
+  /// the current stream before initializing the new one.
+  Future<void> _selectEpisode(int episodeNum) async {
+    if (_currentEpisodeNumber == episodeNum && _initialized && _error == null) return;
+    _cancelCountdown();
+
+    // 1. Immediately stop & dispose old player
+    await _disposeCurrentPlayer(saveProgress: true);
+
+    // 2. Reset state & show loading indicator
+    if (mounted) {
+      setState(() {
+        _currentEpisodeNumber = episodeNum;
+        _firstResolve = true;
+        _initialized = false;
+        _source = null;
+        _error = null;
+      });
+    }
+
+    // 3. Resolve & initialize new stream
+    await _resolveStream();
+  }
+
   /// Resolves the real `.m3u8` for the current episode + audio choice, then
   /// initializes the player.
   Future<void> _resolveStream({Duration? seekToPosition}) async {
-    setState(() {
-      _initialized = false;
-      _error = null;
-    });
+    // Ensure previous player is stopped & disposed before starting resolution
+    await _disposeCurrentPlayer(saveProgress: false);
+
+    if (mounted) {
+      setState(() {
+        _initialized = false;
+        _source = null;
+        _error = null;
+      });
+    }
 
     final malId = widget.malId;
     if (malId == null) {
-      setState(() {
-        _error = AppFailure.notFound('This title has no streaming source.');
-      });
+      if (mounted) {
+        setState(() {
+          _error = AppFailure.notFound('This title has no streaming source.');
+        });
+      }
       return;
     }
 
@@ -366,16 +379,14 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
     final source = _source;
     if (source == null) return;
 
-    setState(() {
-      _initialized = false;
-    });
-
-    // Dispose previous controller if any
-    if (_controller != null) {
-      _controller!.removeListener(_videoListener);
-      await _controller!.dispose();
-      _setWakelock(false);
+    if (mounted) {
+      setState(() {
+        _initialized = false;
+      });
     }
+
+    // Completely dispose previous controller and unbind
+    await _disposeCurrentPlayer(saveProgress: false);
 
     final playableUrl = await _M3u8Parser.getSelectedQualityUrl(
       source.url,
@@ -383,7 +394,9 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
       source.headers,
     );
 
-    _controller = VideoPlayerController.networkUrl(
+    if (!mounted) return;
+
+    final newController = VideoPlayerController.networkUrl(
       Uri.parse(playableUrl),
       httpHeaders: source.headers,
       videoPlayerOptions: VideoPlayerOptions(
@@ -392,10 +405,17 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
       ),
     );
 
+    // Enforce global single active player registry
+    await GlobalPlayerManager.registerAndDisposePrevious(newController);
+
+    _controller = newController;
+
     try {
       await _controller!.initialize();
+      if (!mounted || _controller != newController) return;
+
       _controller!.addListener(_videoListener);
-      
+
       // Determine seek position
       if (seekToPosition != null) {
         await _controller!.seekTo(seekToPosition);
@@ -407,17 +427,20 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
           await _controller!.seekTo(Duration(milliseconds: savedProgress.lastWatchedPosition));
         }
       }
-      
+
       await _controller!.setPlaybackSpeed(_playbackSpeed);
       await _controller!.play();
-      setState(() {
-        _initialized = true;
-      });
-      _loadSubtitle(_activeSubtitle);
-      _startControlsTimer();
+
+      if (mounted && _controller == newController) {
+        setState(() {
+          _initialized = true;
+        });
+        _loadSubtitle(_activeSubtitle);
+        _startControlsTimer();
+      }
     } catch (e) {
       debugPrint('Error initializing video player: $e');
-      _setWakelock(false);
+      await _disposeCurrentPlayer(saveProgress: false);
       if (mounted) {
         setState(() {
           _initialized = false;
@@ -523,21 +546,13 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
   void _playNextEpisode() {
     _countdownTimer?.cancel();
     if (_currentEpisodeNumber < widget.totalEpisodes) {
-      setState(() {
-        _currentEpisodeNumber++;
-        _firstResolve = true; // Apply default subtitles on new episode
-      });
-      _resolveStream();
+      _selectEpisode(_currentEpisodeNumber + 1);
     }
   }
 
   void _playPreviousEpisode() {
     if (_currentEpisodeNumber > 1) {
-      setState(() {
-        _currentEpisodeNumber--;
-        _firstResolve = true;
-      });
-      _resolveStream();
+      _selectEpisode(_currentEpisodeNumber - 1);
     }
   }
 
@@ -1364,6 +1379,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
                 bannerImage: animeData.bannerImage,
                 streamingEpisodes: animeData.streamingEpisodes,
                 nextAiringEpisode: animeData.nextAiringEpisode,
+                onEpisodeSelected: (epNum) => _selectEpisode(epNum),
               ),
             ],
           ),
@@ -1500,13 +1516,16 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
           return ListTile(
             title: Text(_getQualityLabel(quality)),
             trailing: _selectedQuality == quality ? const Icon(Icons.check, color: Color(0xFF7C4DFF)) : null,
-            onTap: () {
+            onTap: () async {
               Navigator.pop(context);
               if (_selectedQuality == quality) return;
+              final pos = _controller?.value.position;
+              await _disposeCurrentPlayer(saveProgress: false);
+              if (!mounted) return;
               setState(() {
                 _selectedQuality = quality;
+                _initialized = false;
               });
-              final pos = _controller?.value.position;
               _initializePlayer(seekToPosition: pos);
             },
           );
@@ -1514,8 +1533,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
       ),
     );
   }
-
-
 
   void _showAudioSelector() {
     showModalBottomSheet(
@@ -1535,13 +1552,17 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> with Widg
                 ),
               ),
               trailing: isActive ? const Icon(Icons.check, color: Color(0xFF7C4DFF)) : null,
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
                 if (_isDub == dub) return;
                 final pos = _controller?.value.position;
+                await _disposeCurrentPlayer(saveProgress: true);
+                if (!mounted) return;
                 setState(() {
                   _isDub = dub;
                   _activeSubtitle = 'Off';
+                  _initialized = false;
+                  _source = null;
                 });
                 ref.read(settingsNotifierProvider.notifier).setDefaultAudio(dub ? AudioOption.dub : AudioOption.sub);
                 _resolveStream(seekToPosition: pos);

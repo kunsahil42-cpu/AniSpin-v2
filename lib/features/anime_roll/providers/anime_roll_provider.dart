@@ -2,6 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/anime_roll_model.dart';
 import '../repository/anime_roll_repository.dart';
+import '../../settings/providers/settings_provider.dart';
+import '../../../core/utils/genre_filter.dart';
+import '../../../core/error/app_failure.dart';
 
 class AnimeRollFilters {
   final String? genre;
@@ -32,6 +35,8 @@ class AnimeRollFilters {
   }
 }
 
+
+
 final animeRollRepositoryProvider = Provider<AnimeRollRepository>((ref) {
   return AnimeRollRepository();
 });
@@ -44,10 +49,17 @@ final animeRollProvider =
     FutureProvider.autoDispose<AnimeRollModel>((ref) async {
   final repository = ref.watch(animeRollRepositoryProvider);
   final filters = ref.watch(animeRollFiltersProvider);
+  final blocked = ref.watch(blockedGenresProvider);
 
-  return repository.getRandomAnime(
-    genre: filters.genre,
-    format: filters.format,
-    minScore: filters.minScore,
-  );
+  for (int i = 0; i < 5; i++) {
+    final anime = await repository.getRandomAnime(
+      genre: filters.genre,
+      format: filters.format,
+      minScore: filters.minScore,
+    );
+    if (!isMediaBlocked(genres: anime.genres, isAdult: anime.isAdult, blockedGenres: blocked)) {
+      return anime;
+    }
+  }
+  throw AppFailure.notFound('No non-blocked anime found. Try adjusting your filters or settings.');
 });

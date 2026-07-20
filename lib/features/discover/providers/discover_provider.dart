@@ -6,6 +6,7 @@ import '../models/discover_anime_model.dart';
 import '../models/discover_manga_model.dart';
 import '../repository/discover_repository.dart';
 import '../../settings/providers/settings_provider.dart';
+import '../../../core/utils/genre_filter.dart';
 
 final discoverRepositoryProvider =
     Provider<DiscoverRepository>((ref) {
@@ -27,8 +28,7 @@ final animeOfTheDayProvider =
 
   if (blocked.isEmpty) return anime;
 
-  final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
-  if (anime.genres.any((g) => blockedLower.contains(g.toLowerCase()))) {
+  if (isMediaBlocked(genres: anime.genres, isAdult: anime.isAdult, blockedGenres: blocked)) {
     return null;
   }
   return anime;
@@ -49,8 +49,7 @@ final mangaOfTheDayProvider =
 
   if (blocked.isEmpty) return manga;
 
-  final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
-  if (manga.genres.any((g) => blockedLower.contains(g.toLowerCase()))) {
+  if (isMediaBlocked(genres: manga.genres, isAdult: manga.isAdult, blockedGenres: blocked)) {
     return null;
   }
   return manga;
@@ -70,9 +69,8 @@ final discoverListProvider =
     return repo.getAnimeList(mode);
   }
 
-  final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
   bool isBlocked(DiscoverAnimeModel item) =>
-      item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
+      isMediaBlocked(genres: item.genres, isAdult: item.isAdult, blockedGenres: blocked);
 
   const targetCount = 20;
   const maxPages = 4;
@@ -103,9 +101,8 @@ final discoverMangaListProvider =
     return repo.getMangaList(mode);
   }
 
-  final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
   bool isBlocked(DiscoverMangaModel item) =>
-      item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
+      isMediaBlocked(genres: item.genres, isAdult: item.isAdult, blockedGenres: blocked);
 
   const targetCount = 20;
   const maxPages = 4;

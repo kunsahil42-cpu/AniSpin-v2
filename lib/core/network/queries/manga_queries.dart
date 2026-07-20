@@ -20,6 +20,7 @@ query TrendingManga($page: Int) {
       averageScore
       genres
       chapters
+      isAdult
     }
   }
 }
@@ -48,6 +49,7 @@ query BestOngoingManga($page: Int) {
       averageScore
       genres
       chapters
+      isAdult
     }
   }
 }
@@ -78,6 +80,7 @@ query TopRatedPicksManga($page: Int, $startDateGreater: FuzzyDateInt) {
       averageScore
       genres
       chapters
+      isAdult
     }
   }
 }
@@ -106,6 +109,7 @@ query PopularThisWeekManga($page: Int) {
       averageScore
       genres
       chapters
+      isAdult
     }
   }
 }
@@ -132,6 +136,7 @@ query LatestReleasesManga($page: Int) {
       averageScore
       genres
       chapters
+      isAdult
     }
   }
 }
@@ -153,6 +158,7 @@ query SearchManga($search: String) {
       chapters
       status
       genres
+      isAdult
     }
   }
 }

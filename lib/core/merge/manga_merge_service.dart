@@ -48,6 +48,7 @@ class MangaMergeService {
       format: m.format ?? JikanFieldUtils.upper(j['type']),
       popularity: m.popularity ?? JikanFieldUtils.intField(j, 'members'),
       author: m.author.isEmpty ? JikanFieldUtils.firstAuthor(j) : m.author,
+      isAdult: m.isAdult,
     );
   }
 
@@ -141,6 +142,7 @@ class MangaMergeService {
       format: m.format ?? (attrs['publicationDemographic'] ?? 'MANGA').toString().toUpperCase(),
       popularity: m.popularity,
       author: m.author.isEmpty ? (authorName ?? '') : m.author,
+      isAdult: m.isAdult,
     );
   }
 
@@ -212,6 +214,9 @@ class MangaMergeService {
       }
     }
 
+    final contentRating = attrs['contentRating'] as String?;
+    final isAdult = contentRating == 'erotica' || contentRating == 'pornographic';
+
     return MangaDetailsModel(
       id: MangaDexApi.uuidToId(dexId),
       idMal: null,
@@ -229,6 +234,7 @@ class MangaMergeService {
       format: (attrs['publicationDemographic'] ?? 'MANGA').toString().toUpperCase(),
       popularity: null,
       author: authorName,
+      isAdult: isAdult,
     );
   }
 
@@ -250,6 +256,7 @@ class MangaMergeService {
       format: JikanFieldUtils.upper(j['type']),
       popularity: JikanFieldUtils.intField(j, 'members'),
       author: JikanFieldUtils.firstAuthor(j),
+      isAdult: false,
     );
   }
 }

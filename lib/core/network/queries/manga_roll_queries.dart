@@ -35,6 +35,8 @@ query RandomManga($page: Int, $genre: String, $format: MediaFormat, $minScore: I
 
       genres
 
+      isAdult
+
       description(asHtml: false)
 
       status

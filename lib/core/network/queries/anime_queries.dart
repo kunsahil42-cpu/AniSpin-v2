@@ -15,6 +15,7 @@ query SearchAnime($search: String) {
       episodes
       status
       genres
+      isAdult
     }
   }
 }

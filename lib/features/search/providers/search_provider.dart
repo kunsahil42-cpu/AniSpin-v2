@@ -5,6 +5,7 @@ import '../models/anime_model.dart';
 import '../models/manga_model.dart';
 import '../repository/search_repository.dart';
 import '../../settings/providers/settings_provider.dart';
+import '../../../core/utils/genre_filter.dart';
 
 final searchRepositoryProvider = Provider<SearchRepository>((ref) {
   return SearchRepository();
@@ -25,9 +26,8 @@ final animeSearchProvider =
   }
   if (blocked.isEmpty) return list;
 
-  final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
   return list.where((item) {
-    return !item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
+    return !isMediaBlocked(genres: item.genres, isAdult: item.isAdult, blockedGenres: blocked);
   }).toList();
 });
 
@@ -46,8 +46,7 @@ final mangaSearchProvider =
   }
   if (blocked.isEmpty) return list;
 
-  final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
   return list.where((item) {
-    return !item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
+    return !isMediaBlocked(genres: item.genres, isAdult: item.isAdult, blockedGenres: blocked);
   }).toList();
 });

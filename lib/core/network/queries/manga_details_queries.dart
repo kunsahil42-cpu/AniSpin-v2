@@ -30,6 +30,8 @@ query GetMangaDetails($id: Int) {
 
     genres
 
+    isAdult
+
     format
 
     popularity

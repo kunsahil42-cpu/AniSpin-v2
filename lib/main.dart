@@ -7,7 +7,7 @@ import 'core/database/isar_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 256 * 1024 * 1024; // 256MB
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 80 * 1024 * 1024; // 80MB
 
   // Global safety net: any framework or async error is logged in debug only,
   // never surfaced to users as a red screen or raw stack trace. User-facing

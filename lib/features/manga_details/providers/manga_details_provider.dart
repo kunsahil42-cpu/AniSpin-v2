@@ -5,6 +5,9 @@ import '../../../core/network/mangadex/mangadex_api.dart';
 import '../../../core/source_fallback/source_fallback_manager.dart';
 import '../models/manga_details_model.dart';
 import '../repository/manga_details_repository.dart';
+import '../../settings/providers/settings_provider.dart';
+import '../../../core/utils/genre_filter.dart';
+import '../../../core/error/app_failure.dart';
 
 import '../models/chapter_model.dart';
 
@@ -16,9 +19,14 @@ final mangaDetailsRepositoryProvider = Provider<MangaDetailsRepository>((ref) {
 
 // Provider for manga details that returns a Future<MangaDetailsModel>
 final mangaDetailsProvider =
-    FutureProvider.family<MangaDetailsModel, int>((ref, mangaId) {
+    FutureProvider.family<MangaDetailsModel, int>((ref, mangaId) async {
   final repository = ref.read(mangaDetailsRepositoryProvider);
-  return repository.getMangaDetails(mangaId);
+  final details = await repository.getMangaDetails(mangaId);
+  final blocked = ref.watch(blockedGenresProvider);
+  if (isMediaBlocked(genres: details.genres, isAdult: details.isAdult, blockedGenres: blocked)) {
+    throw AppFailure.notFound('This manga is blocked under your settings.');
+  }
+  return details;
 });
 
 class MangaChaptersNotifier extends FamilyAsyncNotifier<List<ChapterModel>, int> {

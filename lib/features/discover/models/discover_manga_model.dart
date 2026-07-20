@@ -9,6 +9,7 @@ class DiscoverMangaModel {
   final List<String> genres;
   final String description;
   final String? status;
+  final bool isAdult;
 
   const DiscoverMangaModel({
     required this.id,
@@ -21,37 +22,22 @@ class DiscoverMangaModel {
     required this.genres,
     required this.description,
     required this.status,
+    this.isAdult = false,
   });
 
   factory DiscoverMangaModel.fromJson(Map<String, dynamic> json) {
     return DiscoverMangaModel(
       id: json['id'],
-
       title: json['title']['romaji'] ?? '',
-
       englishTitle: json['title']['english'],
-
-      coverImage:
-          json['coverImage']?['extraLarge'] ?? '',
-
-      bannerImage:
-          json['bannerImage'] ?? '',
-
-      averageScore:
-          json['averageScore'],
-
-      popularity:
-          json['popularity'],
-
-      genres: List<String>.from(
-        json['genres'] ?? [],
-      ),
-
-      description:
-          json['description'] ?? '',
-
-      status:
-          json['status'],
+      coverImage: json['coverImage']?['extraLarge'] ?? '',
+      bannerImage: json['bannerImage'] ?? '',
+      averageScore: json['averageScore'],
+      popularity: json['popularity'],
+      genres: List<String>.from(json['genres'] ?? []),
+      description: json['description'] ?? '',
+      status: json['status'],
+      isAdult: json['isAdult'] as bool? ?? false,
     );
   }
 }

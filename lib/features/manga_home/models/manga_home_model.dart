@@ -5,6 +5,7 @@ class MangaHomeModel {
   final int? averageScore;
   final List<String> genres;
   final int? chapters;
+  final bool isAdult;
 
   MangaHomeModel({
     required this.id,
@@ -13,6 +14,7 @@ class MangaHomeModel {
     this.averageScore,
     required this.genres,
     this.chapters,
+    this.isAdult = false,
   });
 
   factory MangaHomeModel.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class MangaHomeModel {
       averageScore: json['averageScore'],
       genres: List<String>.from(json['genres'] ?? []),
       chapters: json['chapters'],
+      isAdult: json['isAdult'] as bool? ?? false,
     );
   }
 }

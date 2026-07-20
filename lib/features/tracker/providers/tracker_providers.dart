@@ -5,6 +5,7 @@ import '../models/reading_progress.dart';
 import '../repository/watch_progress_repository.dart';
 import '../repository/reading_progress_repository.dart';
 import '../../settings/providers/settings_provider.dart';
+import '../../../core/utils/genre_filter.dart';
 
 final watchProgressRepositoryProvider = Provider<WatchProgressRepository>((ref) {
   return WatchProgressRepository();
@@ -23,9 +24,8 @@ final continueWatchingProvider = StreamProvider<List<WatchProgress>>((ref) {
 
   return repo.watchContinueWatching().map((list) {
     if (blocked.isEmpty) return list;
-    final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
     return list.where((item) {
-      return !item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
+      return !isMediaBlocked(genres: item.genres, isAdult: false, blockedGenres: blocked);
     }).toList();
   });
 });
@@ -39,9 +39,8 @@ final continueReadingProvider = StreamProvider<List<ReadingProgress>>((ref) {
 
   return repo.watchContinueReading().map((list) {
     if (blocked.isEmpty) return list;
-    final blockedLower = blocked.map((b) => b.toLowerCase()).toSet();
     return list.where((item) {
-      return !item.genres.any((g) => blockedLower.contains(g.toLowerCase()));
+      return !isMediaBlocked(genres: item.genres, isAdult: false, blockedGenres: blocked);
     }).toList();
   });
 });

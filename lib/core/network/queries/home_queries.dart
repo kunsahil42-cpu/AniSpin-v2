@@ -19,6 +19,7 @@ query TrendingAnime($page: Int) {
       averageScore
       episodes
       genres
+      isAdult
     }
   }
 }
@@ -46,6 +47,7 @@ query ThisSeasonAnime($season: MediaSeason, $seasonYear: Int, $page: Int) {
       averageScore
       episodes
       genres
+      isAdult
     }
   }
 }
@@ -76,6 +78,7 @@ query JustReleasedAnime($startDateGreater: FuzzyDateInt, $page: Int) {
       averageScore
       episodes
       genres
+      isAdult
     }
   }
 }
@@ -103,6 +106,7 @@ query PopularThisWeekAnime($page: Int) {
       averageScore
       episodes
       genres
+      isAdult
     }
   }
 }

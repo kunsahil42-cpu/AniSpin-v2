@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/anime_cache.dart';
 import '../models/anime_details_model.dart';
 import '../repository/anime_details_repository.dart';
+import '../../settings/providers/settings_provider.dart';
+import '../../../core/utils/genre_filter.dart';
+import '../../../core/error/app_failure.dart';
 
 final animeDetailsRepositoryProvider =
     Provider<AnimeDetailsRepository>((ref) {
@@ -13,16 +16,25 @@ final animeDetailsRepositoryProvider =
 class AnimeDetailsNotifier extends FamilyAsyncNotifier<AnimeDetailsModel, int> {
   @override
   FutureOr<AnimeDetailsModel> build(int animeId) async {
+    final blocked = ref.watch(blockedGenresProvider);
+
     // 1. Try to load cached details first
     final cached = await AnimeCache.getAnimeDetails(animeId);
     if (cached != null) {
+      if (isMediaBlocked(genres: cached.genres, isAdult: cached.isAdult, blockedGenres: blocked)) {
+        throw AppFailure.notFound('This anime is blocked under your settings.');
+      }
       // Trigger background update asynchronously
       _refreshAnimeInBackground(animeId);
       return cached;
     }
 
     // 2. If no cache, fetch from network
-    return _fetchAndCacheAnime(animeId);
+    final details = await _fetchAndCacheAnime(animeId);
+    if (isMediaBlocked(genres: details.genres, isAdult: details.isAdult, blockedGenres: blocked)) {
+      throw AppFailure.notFound('This anime is blocked under your settings.');
+    }
+    return details;
   }
 
   void _refreshAnimeInBackground(int animeId) {

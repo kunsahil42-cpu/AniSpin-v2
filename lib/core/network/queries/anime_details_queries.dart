@@ -28,6 +28,8 @@ query GetAnimeDetails($id: Int) {
 
     genres
 
+    isAdult
+
     season
 
     seasonYear

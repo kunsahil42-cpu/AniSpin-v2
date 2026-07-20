@@ -20,6 +20,7 @@ query AnimeOfTheDay($page: Int) {
       averageScore
       episodes
       genres
+      isAdult
       description(asHtml: false)
       status
     }
@@ -47,6 +48,7 @@ query MangaOfTheDay($page: Int) {
       bannerImage
       averageScore
       genres
+      isAdult
       description(asHtml: false)
       status
     }
@@ -75,6 +77,7 @@ query RandomAnime($page: Int) {
       averageScore
       episodes
       genres
+      isAdult
       description(asHtml: false)
       status
     }
@@ -101,6 +104,7 @@ query TrendingAnime($page: Int) {
       }
       averageScore
       genres
+      isAdult
     }
   }
 }
@@ -127,6 +131,7 @@ query HiddenGems($page: Int) {
       averageScore
       popularity
       genres
+      isAdult
     }
   }
 }
@@ -152,6 +157,7 @@ query AiringAnime($page: Int) {
       }
       averageScore
       genres
+      isAdult
     }
   }
 }
@@ -176,6 +182,7 @@ query TopRatedAnime($page: Int) {
       }
       averageScore
       genres
+      isAdult
     }
   }
 }
@@ -201,6 +208,7 @@ query RandomManga($page: Int) {
       bannerImage
       averageScore
       genres
+      isAdult
       description(asHtml: false)
       status
     }
@@ -227,6 +235,7 @@ query TrendingManga($page: Int) {
       }
       averageScore
       genres
+      isAdult
     }
   }
 }
@@ -253,6 +262,7 @@ query HiddenGemsManga($page: Int) {
       averageScore
       popularity
       genres
+      isAdult
     }
   }
 }
@@ -278,6 +288,7 @@ query AiringManga($page: Int) {
       }
       averageScore
       genres
+      isAdult
     }
   }
 }
@@ -302,6 +313,7 @@ query TopRatedManga($page: Int) {
       }
       averageScore
       genres
+      isAdult
     }
   }
 }

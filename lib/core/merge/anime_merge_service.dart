@@ -53,10 +53,15 @@ class AnimeMergeService {
       studio: a.studio.isEmpty ? JikanFieldUtils.firstStudio(j) : a.studio,
       streamingEpisodes: a.streamingEpisodes,
       nextAiringEpisode: a.nextAiringEpisode,
+      isAdult: a.isAdult,
     );
   }
 
   AnimeDetailsModel fromJikan(Map<String, dynamic> j) {
+    final rating = j['rating'] as String?;
+    final isAdult = rating != null &&
+        (rating.toLowerCase().contains('rx') || rating.toLowerCase().contains('hentai'));
+
     return AnimeDetailsModel(
       id: JikanFieldUtils.intField(j, 'mal_id') ?? 0,
       idMal: JikanFieldUtils.intField(j, 'mal_id'),
@@ -78,6 +83,7 @@ class AnimeMergeService {
       studio: JikanFieldUtils.firstStudio(j),
       streamingEpisodes: const [],
       nextAiringEpisode: null,
+      isAdult: isAdult,
     );
   }
 }

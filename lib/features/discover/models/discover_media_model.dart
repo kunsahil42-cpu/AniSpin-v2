@@ -8,6 +8,7 @@ class DiscoverMediaModel {
   final List<String> genres;
   final String status;
   final String description;
+  final bool isAdult;
 
   const DiscoverMediaModel({
     required this.id,
@@ -19,6 +20,7 @@ class DiscoverMediaModel {
     required this.genres,
     required this.status,
     required this.description,
+    this.isAdult = false,
   });
 
   factory DiscoverMediaModel.fromJson(Map<String, dynamic> json) {
@@ -35,6 +37,7 @@ class DiscoverMediaModel {
       genres: (json['genres'] as List?)?.map((e) => e.toString()).toList() ?? const [],
       status: json['status'] as String? ?? 'Unknown',
       description: json['description'] as String? ?? '',
+      isAdult: json['isAdult'] as bool? ?? false,
     );
   }
 }
