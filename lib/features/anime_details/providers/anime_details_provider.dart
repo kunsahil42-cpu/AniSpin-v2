@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/anime_cache.dart';
@@ -39,7 +40,9 @@ class AnimeDetailsNotifier extends FamilyAsyncNotifier<AnimeDetailsModel, int> {
 
   void _refreshAnimeInBackground(int animeId) {
     _fetchAndCacheAnime(animeId).catchError((e) {
-      print('AnimeDetailsNotifier: Background refresh failed: $e');
+      if (kDebugMode) {
+        debugPrint('[AnimeDetailsNotifier] Background refresh failed: $e');
+      }
       return state.value!; // Fallback to current state
     });
   }

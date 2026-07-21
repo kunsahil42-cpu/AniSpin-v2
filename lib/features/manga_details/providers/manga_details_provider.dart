@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/chapter_cache.dart';
 import '../../../core/network/mangadex/mangadex_api.dart';
@@ -46,7 +47,9 @@ class MangaChaptersNotifier extends FamilyAsyncNotifier<List<ChapterModel>, int>
 
   void _refreshChaptersInBackground(int mangaId) {
     _fetchAndCacheChapters(mangaId).catchError((e) {
-      print('MangaChaptersNotifier: Background refresh failed: $e');
+      if (kDebugMode) {
+        debugPrint('[MangaChaptersNotifier] Background refresh failed: $e');
+      }
       return const <ChapterModel>[];
     });
   }

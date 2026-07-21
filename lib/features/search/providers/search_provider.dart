@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/anime_model.dart';
@@ -11,19 +10,26 @@ final searchRepositoryProvider = Provider<SearchRepository>((ref) {
   return SearchRepository();
 });
 
+/// Sanitizes search input by trimming, stripping control characters, and limiting length.
+String sanitizeSearchQuery(String input) {
+  final trimmed = input.trim();
+  if (trimmed.isEmpty) return '';
+  // Strip control characters (ASCII 0-31 and 127) and restrict maximum length to 100
+  final clean = trimmed.replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '');
+  return clean.length > 100 ? clean.substring(0, 100) : clean;
+}
+
 final animeSearchProvider =
     FutureProvider.family<List<AnimeModel>, String>((ref, query) async {
   final repository = ref.read(searchRepositoryProvider);
+  final sanitizedQuery = sanitizeSearchQuery(query);
 
-  if (query.trim().isEmpty) {
+  if (sanitizedQuery.isEmpty) {
     return [];
   }
 
-  final list = await repository.searchAnime(query);
+  final list = await repository.searchAnime(sanitizedQuery);
   final blocked = ref.watch(blockedGenresProvider);
-  if (kDebugMode) {
-    debugPrint('[Search] animeSearchProvider — blockedGenres used during filtering: $blocked');
-  }
   if (blocked.isEmpty) return list;
 
   return list.where((item) {
@@ -34,19 +40,17 @@ final animeSearchProvider =
 final mangaSearchProvider =
     FutureProvider.family<List<MangaModel>, String>((ref, query) async {
   final repository = ref.read(searchRepositoryProvider);
+  final sanitizedQuery = sanitizeSearchQuery(query);
 
-  if (query.trim().isEmpty) {
+  if (sanitizedQuery.isEmpty) {
     return [];
   }
 
-  final list = await repository.searchManga(query);
+  final list = await repository.searchManga(sanitizedQuery);
   final blocked = ref.watch(blockedGenresProvider);
-  if (kDebugMode) {
-    debugPrint('[Search] mangaSearchProvider — blockedGenres used during filtering: $blocked');
-  }
   if (blocked.isEmpty) return list;
 
   return list.where((item) {
     return !isMediaBlocked(genres: item.genres, isAdult: item.isAdult, blockedGenres: blocked);
   }).toList();
-});
+});

@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -221,7 +222,9 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
             break;
           }
         } catch (e) {
-          print('MangaReaderScreen: Failed to load pages for candidate: ${candidate.scanGroup} (${candidate.language}): $e');
+          if (kDebugMode) {
+            debugPrint('[MangaReaderScreen] Failed to load pages for candidate: ${candidate.scanGroup} (${candidate.language}): $e');
+          }
         }
       }
 
@@ -358,7 +361,9 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
       ref.invalidate(mangaProgressProvider(widget.mangaId));
       ref.invalidate(continueReadingProvider);
     } catch (e) {
-      print('MangaReaderScreen: Error saving reading progress: $e');
+      if (kDebugMode) {
+        debugPrint('[MangaReaderScreen] Error saving reading progress: $e');
+      }
     }
   }
 

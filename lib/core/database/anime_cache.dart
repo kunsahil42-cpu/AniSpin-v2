@@ -26,7 +26,7 @@ class AnimeCache {
       await file.writeAsString(jsonString);
     } catch (e) {
       if (kDebugMode) {
-        print('AnimeCache: Error saving cache for anime $animeId: $e');
+        debugPrint('[AnimeCache] Error saving cache for anime $animeId: $e');
       }
     }
   }
@@ -41,7 +41,7 @@ class AnimeCache {
       }
     } catch (e) {
       if (kDebugMode) {
-        print('AnimeCache: Error reading cache for anime $animeId: $e');
+        debugPrint('[AnimeCache] Error reading cache for anime $animeId: $e');
       }
     }
     return null;
@@ -55,7 +55,7 @@ class AnimeCache {
       }
     } catch (e) {
       if (kDebugMode) {
-        print('AnimeCache: Error clearing cache: $e');
+        debugPrint('[AnimeCache] Error clearing cache: $e');
       }
     }
   }

@@ -1,5 +1,5 @@
 name: anispin
-description: "A new Flutter project."
+description: "A modern Anime & Manga streaming and discovery platform."
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -12,7 +12,6 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
-
   shimmer: ^3.0.0
 
   # State Management
@@ -24,13 +23,7 @@ dependencies:
   # Fonts
   google_fonts: ^6.3.0
 
-  # SVG Icons
-  flutter_svg: ^2.2.0
-
   # Animations
-  lottie: ^3.3.1
-  animated_text_kit: ^4.2.3
-  animations: ^2.0.11
   flutter_animate: ^4.5.2
 
   # GraphQL (AniList API)
@@ -43,14 +36,14 @@ dependencies:
   # Network Images
   cached_network_image: ^3.4.1
 
-  # Local Database (Sprint 8)
+  # Local Database
   isar: ^3.1.0+1
   isar_flutter_libs: ^3.1.0+1
   path_provider: ^2.1.5
   path: ^1.9.1
   video_player: ^2.8.6
   wakelock_plus: ^1.1.4
-  crypto: ^3.0.3  # Added for SHA256 hashing
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:
@@ -61,12 +54,30 @@ dev_dependencies:
   # Isar Code Generation
   build_runner: ^2.4.13
   isar_generator: ^3.1.0+1
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/icons/app_icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#08031A"
+  adaptive_icon_foreground: "assets/icons/app_icon.png"
+  web:
+    generate: true
+    image_path: "assets/icons/app_icon.png"
+    background_color: "#0B0B1E"
+    theme_color: "#7C4DFF"
+  windows:
+    generate: true
+    image_path: "assets/icons/app_icon.png"
+    icon_size: 48
+  macos:
+    generate: true
+    image_path: "assets/icons/app_icon.png"
 
 flutter:
   uses-material-design: true
-
   assets:
-    - assets/images/
     - assets/icons/
-    - assets/animations/
-    - assets/sounds/
+    - assets/images/

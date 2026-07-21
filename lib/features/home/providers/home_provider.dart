@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../enums/home_section.dart';
@@ -18,9 +17,6 @@ final homeSectionProvider =
   (ref, section) async {
     final repo = ref.read(homeRepositoryProvider);
     final blocked = ref.watch(blockedGenresProvider);
-    if (kDebugMode) {
-      debugPrint('[Home] homeSectionProvider($section) — blockedGenres used during filtering: $blocked');
-    }
 
     if (blocked.isEmpty) {
       return repo.getAnime(section);

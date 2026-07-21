@@ -330,27 +330,17 @@ class DiscoverRepository {
       final result = await _api.getFilteredContent(variables);
 
       if (result.hasException) {
-        debugPrint("--------------------------------------------------");
-        debugPrint("API returns no data (GraphQL Exception):");
-        debugPrint("Full request URL: https://graphql.anilist.co");
-        debugPrint("Query Parameters: $variables");
-        debugPrint("Response Code: ${result.context.entry<HttpLinkResponseContext>()?.statusCode ?? '500'}");
-        debugPrint("Response Body: ${result.exception.toString()}");
-        debugPrint("--------------------------------------------------");
+        if (kDebugMode) {
+          debugPrint('[DiscoverRepository] GraphQL Exception: ${result.exception}');
+        }
         throw AppFailure.fromOperation(result.exception);
       }
 
       final List<dynamic> media =
           result.data?['Page']?['media'] ?? [];
 
-      if (media.isEmpty) {
-        debugPrint("--------------------------------------------------");
-        debugPrint("API returns no data (Empty Media List):");
-        debugPrint("Full request URL: https://graphql.anilist.co");
-        debugPrint("Query Parameters: $variables");
-        debugPrint("Response Code: 200");
-        debugPrint("Response Body: ${result.data.toString()}");
-        debugPrint("--------------------------------------------------");
+      if (media.isEmpty && kDebugMode) {
+        debugPrint('[DiscoverRepository] API returns empty media list for params: $variables');
       }
 
       return media

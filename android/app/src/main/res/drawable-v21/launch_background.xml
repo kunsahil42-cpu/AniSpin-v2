@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- Custom launch splash screen background matching AniSpin dark theme gradient & full branding -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="?android:colorBackground" />
+    <!-- Gradient background matching Flutter SplashScreen -->
+    <item android:drawable="@drawable/splash_gradient" />
 
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+    <!-- Centered AniSpin full logo & text branding -->
+    <item
+        android:drawable="@drawable/anispin_logo_full"
+        android:gravity="center" />
 </layer-list>

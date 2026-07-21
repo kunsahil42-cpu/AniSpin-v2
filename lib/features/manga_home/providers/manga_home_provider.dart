@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/mangadex/mangadex_api.dart';
 import '../models/manga_home_model.dart';
@@ -15,9 +14,6 @@ final mangaHomeRepositoryProvider = Provider<MangaHomeRepository>((ref) {
 final mangaHomeSectionProvider = FutureProvider.family<List<MangaHomeModel>, MangaHomeSection>((ref, section) async {
   final repo = ref.watch(mangaHomeRepositoryProvider);
   final blocked = ref.watch(blockedGenresProvider);
-  if (kDebugMode) {
-    debugPrint('[MangaHome] mangaHomeSectionProvider($section) — blockedGenres used during filtering: $blocked');
-  }
 
   if (blocked.isEmpty) {
     return repo.getMangaList(section);

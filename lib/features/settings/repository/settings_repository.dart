@@ -11,11 +11,6 @@ class SettingsRepository {
   static const int settingsReservedId = -999;
 
   Future<void> saveSettings(AppSettings settings) async {
-    if (kDebugMode) {
-      debugPrint('[Settings] ▶ saveSettings() called');
-      debugPrint('[Settings]   blockedGenres BEFORE save: ${settings.blockedGenres}');
-    }
-
     await _isar.writeTxn(() async {
       final existing = await _isar.collection<WatchProgress>()
           .filter()
@@ -38,11 +33,6 @@ class SettingsRepository {
 
       await _isar.collection<WatchProgress>().put(progress);
     });
-
-    if (kDebugMode) {
-      debugPrint('[Settings]   blockedGenres AFTER save: ${settings.blockedGenres}');
-      debugPrint('[Settings] ✔ saveSettings() complete');
-    }
   }
 
   AppSettings? getSettingsSync() {
@@ -54,24 +44,13 @@ class SettingsRepository {
     if (record != null && record.notes != null) {
       try {
         final Map<String, dynamic> json = jsonDecode(record.notes!);
-        final settings = AppSettings.fromJson(json);
-        if (kDebugMode) {
-          debugPrint('[Settings] ▶ getSettingsSync() — record found');
-          debugPrint('[Settings]   blockedGenres loaded from storage: ${settings.blockedGenres}');
-        }
-        return settings;
+        return AppSettings.fromJson(json);
       } catch (e, st) {
-        // Log so we can diagnose issues — don't crash, just fall back to defaults.
         if (kDebugMode) {
-          debugPrint('[Settings] ✖ getSettingsSync() — failed to parse stored settings: $e');
-          debugPrint('$st');
+          debugPrint('[Settings] Failed to parse stored settings: $e\n$st');
         }
         return null;
       }
-    }
-
-    if (kDebugMode) {
-      debugPrint('[Settings] ▶ getSettingsSync() — no saved record found (first launch or DB cleared)');
     }
     return null;
   }
@@ -85,15 +64,10 @@ class SettingsRepository {
     if (record != null && record.notes != null) {
       try {
         final Map<String, dynamic> json = jsonDecode(record.notes!);
-        final settings = AppSettings.fromJson(json);
-        if (kDebugMode) {
-          debugPrint('[Settings] ▶ getSettings() async — blockedGenres loaded: ${settings.blockedGenres}');
-        }
-        return settings;
+        return AppSettings.fromJson(json);
       } catch (e, st) {
         if (kDebugMode) {
-          debugPrint('[Settings] ✖ getSettings() — failed to parse stored settings: $e');
-          debugPrint('$st');
+          debugPrint('[Settings] Failed to parse stored settings: $e\n$st');
         }
         return null;
       }

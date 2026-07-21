@@ -47,29 +47,52 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
             end: Alignment.bottomRight,
           ),
         ),
-        child: const Column(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.casino,
-              color: Colors.white,
-              size: 100,
+            Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(32),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x997C4DFF),
+                    blurRadius: 30,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(32),
+                child: Image.asset(
+                  'assets/icons/app_icon.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.casino,
+                    color: Colors.white,
+                    size: 100,
+                  ),
+                ),
+              ),
             ),
-            SizedBox(height: 20),
-            Text(
+            const SizedBox(height: 24),
+            const Text(
               'AniSpin',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 34,
-                fontWeight: FontWeight.bold,
+                fontSize: 36,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
               ),
             ),
-            SizedBox(height: 8),
-            Text(
+            const SizedBox(height: 8),
+            const Text(
               'by Astrix Studio',
               style: TextStyle(
                 color: Colors.white70,
                 fontSize: 16,
+                letterSpacing: 0.5,
               ),
             ),
           ],

@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../enums/discover_mode.dart';
@@ -15,13 +14,7 @@ final discoverRepositoryProvider =
 
 final animeOfTheDayProvider =
     FutureProvider<DiscoverAnimeModel?>((ref) async {
-  // Read blocked genres BEFORE any await so the dependency is registered
-  // before this provider becomes async — prevents stale filtering.
   final blocked = ref.watch(blockedGenresProvider);
-  if (kDebugMode) {
-    debugPrint('[Discover] animeOfTheDayProvider — blockedGenres used during filtering: $blocked');
-  }
-
   final anime = await ref
       .read(discoverRepositoryProvider)
       .getAnimeOfTheDay();
@@ -36,13 +29,7 @@ final animeOfTheDayProvider =
 
 final mangaOfTheDayProvider =
     FutureProvider<DiscoverMangaModel?>((ref) async {
-  // Read blocked genres BEFORE any await so the dependency is registered
-  // before this provider becomes async — prevents stale filtering.
   final blocked = ref.watch(blockedGenresProvider);
-  if (kDebugMode) {
-    debugPrint('[Discover] mangaOfTheDayProvider — blockedGenres used during filtering: $blocked');
-  }
-
   final manga = await ref
       .read(discoverRepositoryProvider)
       .getMangaOfTheDay();
@@ -61,9 +48,6 @@ final discoverListProvider =
         DiscoverMode>((ref, mode) async {
   final repo = ref.read(discoverRepositoryProvider);
   final blocked = ref.watch(blockedGenresProvider);
-  if (kDebugMode) {
-    debugPrint('[Discover] discoverListProvider($mode) — blockedGenres used during filtering: $blocked');
-  }
 
   if (blocked.isEmpty) {
     return repo.getAnimeList(mode);
@@ -81,7 +65,6 @@ final discoverListProvider =
     for (final item in raw) {
       if (!isBlocked(item)) accumulated.add(item);
     }
-    // Stop early if we have enough or API returned fewer than a full page
     if (accumulated.length >= targetCount || raw.length < 20) break;
   }
   return accumulated;
@@ -93,9 +76,6 @@ final discoverMangaListProvider =
         DiscoverMode>((ref, mode) async {
   final repo = ref.read(discoverRepositoryProvider);
   final blocked = ref.watch(blockedGenresProvider);
-  if (kDebugMode) {
-    debugPrint('[Discover] discoverMangaListProvider($mode) — blockedGenres used during filtering: $blocked');
-  }
 
   if (blocked.isEmpty) {
     return repo.getMangaList(mode);

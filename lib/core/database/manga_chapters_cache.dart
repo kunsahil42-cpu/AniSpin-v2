@@ -29,7 +29,9 @@ class MangaChaptersCache {
         });
       }
     } catch (e) {
-      debugPrint('Error loading manga chapters cache: $e');
+      if (kDebugMode) {
+        debugPrint('[MangaChaptersCache] Error loading manga chapters cache: $e');
+      }
     }
     _loaded = true;
   }
@@ -49,7 +51,9 @@ class MangaChaptersCache {
         await _cacheFile!.writeAsString(json.encode(encoded));
       }
     } catch (e) {
-      debugPrint('Error saving manga chapters cache: $e');
+      if (kDebugMode) {
+        debugPrint('[MangaChaptersCache] Error saving manga chapters cache: $e');
+      }
     }
   }
 

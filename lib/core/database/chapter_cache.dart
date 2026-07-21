@@ -27,7 +27,7 @@ class ChapterCache {
       await file.writeAsString(jsonString);
     } catch (e) {
       if (kDebugMode) {
-        print('ChapterCache: Error saving cache for manga $mangaId: $e');
+        debugPrint('[ChapterCache] Error saving cache for manga $mangaId: $e');
       }
     }
   }
@@ -44,7 +44,7 @@ class ChapterCache {
       }
     } catch (e) {
       if (kDebugMode) {
-        print('ChapterCache: Error reading cache for manga $mangaId: $e');
+        debugPrint('[ChapterCache] Error reading cache for manga $mangaId: $e');
       }
     }
     return null;
@@ -58,7 +58,7 @@ class ChapterCache {
       }
     } catch (e) {
       if (kDebugMode) {
-        print('ChapterCache: Error clearing cache: $e');
+        debugPrint('[ChapterCache] Error clearing cache: $e');
       }
     }
   }
