@@ -10,6 +10,9 @@ class ScoreBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasScore = score != null && score! > 0;
+    final scoreText = hasScore ? (score! / 10).toStringAsFixed(1) : "Not Rated";
+
     return Chip(
       avatar: const Icon(
         Icons.star,
@@ -17,7 +20,7 @@ class ScoreBadge extends StatelessWidget {
         size: 18,
       ),
       label: Text(
-        score?.toString() ?? "N/A",
+        scoreText,
         style: const TextStyle(
           fontWeight: FontWeight.bold,
         ),

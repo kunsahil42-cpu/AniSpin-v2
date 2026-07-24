@@ -41,7 +41,7 @@ class ContinueWatchingList extends ConsumerWidget {
                       'englishTitle': item.englishTitle,
                       'coverImage': item.coverImage,
                       'bannerImage': item.bannerImage,
-                      'totalEpisodes': item.totalEpisodes ?? 12,
+                      'totalEpisodes': (item.totalEpisodes != null && item.totalEpisodes! > 0) ? item.totalEpisodes! : 12,
                     },
                   );
                 },
@@ -109,14 +109,14 @@ class _ContinueWatchingCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     LinearProgressIndicator(
-                      value: item.watchPercentage,
+                      value: (item.watchPercentage.isNaN || item.watchPercentage.isInfinite) ? 0.0 : item.watchPercentage,
                       backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
                       valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
                       minHeight: 4,
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${(item.watchPercentage * 100).toInt()}% completed',
+                      '${((item.watchPercentage.isNaN || item.watchPercentage.isInfinite) ? 0.0 : item.watchPercentage * 100).toInt()}% completed',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                         fontSize: 10,

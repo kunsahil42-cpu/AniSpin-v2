@@ -18,7 +18,7 @@ class MangaTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: ListTile(
         onTap: () {
-          context.push('/manga/${manga.id}');
+          context.push('/manga/${manga.id}?title=${Uri.encodeComponent(manga.title)}');
         },
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8),

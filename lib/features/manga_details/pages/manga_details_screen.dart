@@ -15,14 +15,23 @@ import '../../anime_details/widgets/status_chip.dart';
 import '../../tracker/providers/tracker_providers.dart';
 import '../models/manga_details_model.dart';
 import '../providers/manga_details_provider.dart';
+import '../../../core/utils/title_validator.dart';
 import '../widgets/chapter_list.dart';
 import '../widgets/manga_favorite_button.dart';
+import 'package:isar/isar.dart';
+import '../../../core/database/isar_service.dart';
+import '../../manga_reader/models/chapter_reading_state.dart';
 import '../../tracker/widgets/manga_tracking_section.dart';
 
 class MangaDetailsScreen extends ConsumerWidget {
   final int mangaId;
+  final String? selectedTitle;
 
-  const MangaDetailsScreen({super.key, required this.mangaId});
+  const MangaDetailsScreen({
+    super.key,
+    required this.mangaId,
+    this.selectedTitle,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,10 +45,56 @@ class MangaDetailsScreen extends ConsumerWidget {
         loading: () => const SkeletonDetails(),
         onRetry: () => ref.invalidate(mangaDetailsProvider(mangaId)),
         data: (MangaDetailsModel manga) {
+          final isTracked = manga.sourceName == 'Offline' || progressAsync.valueOrNull != null;
+          if (selectedTitle != null &&
+              !isTracked &&
+              !isTitleMatch(
+                selectedTitle,
+                romaji: manga.romajiTitle,
+                english: manga.englishTitle,
+                native: manga.nativeTitle,
+              )) {
+            return Scaffold(
+              appBar: AppBar(
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 64, color: Colors.purpleAccent),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Something went wrong while fetching this title. Please refresh or try another source.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
           final theme = Theme.of(context);
           final isTablet = MediaQuery.of(context).size.width >= 600;
           final progress = progressAsync.valueOrNull;
           final currentChapter = progress?.lastReadChapter ?? 1;
+
+          final chaptersAsync = ref.watch(mangaChaptersProvider(manga.id));
+          final chaptersList = chaptersAsync.valueOrNull ?? [];
+          final maxChapterNum = chaptersList.isNotEmpty 
+              ? chaptersList.map((c) => double.tryParse(c.number) ?? 0.0).reduce((a, b) => a > b ? a : b).toInt() 
+              : 0;
+          final totalChaptersResolved = manga.chapters ?? (maxChapterNum > 0 ? maxChapterNum : 100);
+          final isChaptersLoading = chaptersAsync.isLoading && chaptersList.isEmpty;
 
           return RefreshIndicator(
             onRefresh: () async {
@@ -129,11 +184,57 @@ class MangaDetailsScreen extends ConsumerWidget {
                                   ),
                                 ),
 
+                                if (manga.sourceName == 'Offline') ...[
+                                  const SizedBox(height: 16),
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.redAccent.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.wifi_off_rounded, color: Colors.redAccent),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Text(
+                                                "Unable to fetch additional information right now.",
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.end,
+                                          children: [
+                                            TextButton.icon(
+                                              onPressed: () {
+                                                ref.invalidate(mangaDetailsProvider(mangaId));
+                                              },
+                                              icon: const Icon(Icons.refresh_rounded, color: Colors.purpleAccent),
+                                              label: const Text("Retry Fetch", style: TextStyle(color: Colors.purpleAccent)),
+                                            ),
+                                          ],
+                                        )
+                                      ],
+                                    ),
+                                  ),
+                                ],
+
                                 const SizedBox(height: 16),
 
                                 // Romaji title
                                 Text(
-                                  manga.romajiTitle,
+                                  manga.romajiTitle.isEmpty
+                                      ? 'Unknown Title'
+                                      : manga.romajiTitle,
                                   textAlign: TextAlign.center,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
@@ -205,9 +306,11 @@ class MangaDetailsScreen extends ConsumerWidget {
                                   alignment: WrapAlignment.center,
                                   spacing: 8,
                                   runSpacing: 8,
-                                  children: manga.genres
-                                      .map((g) => GenreChip(genre: g))
-                                      .toList(),
+                                  children: manga.genres.isEmpty
+                                      ? [const GenreChip(genre: 'Unknown Genre')]
+                                      : manga.genres
+                                          .map((g) => GenreChip(genre: g))
+                                          .toList(),
                                 ),
 
                                 const SizedBox(height: 24),
@@ -224,25 +327,27 @@ class MangaDetailsScreen extends ConsumerWidget {
                                     _MetadataCard(
                                       icon: Icons.menu_book_rounded,
                                       title: 'Chapters',
-                                      value:
-                                          manga.chapters != null
-                                              ? manga.chapters.toString()
-                                              : '-',
+                                      value: manga.chapters != null
+                                          ? manga.chapters.toString()
+                                          : isChaptersLoading
+                                              ? 'Loading...'
+                                              : maxChapterNum > 0
+                                                  ? maxChapterNum.toString()
+                                                  : 'Unknown',
                                     ),
                                     _MetadataCard(
                                       icon: Icons.library_books_rounded,
                                       title: 'Volumes',
-                                      value:
-                                          manga.volumes != null
-                                              ? manga.volumes.toString()
-                                              : '-',
+                                      value: manga.volumes != null
+                                          ? manga.volumes.toString()
+                                          : 'Unknown',
                                     ),
                                     _MetadataCard(
                                       icon: Icons.edit_rounded,
                                       title: 'Author',
                                       value: manga.author.isNotEmpty
                                           ? manga.author
-                                          : '-',
+                                          : 'Unknown Author',
                                     ),
                                     _MetadataCard(
                                       icon: Icons.format_list_bulleted_rounded,
@@ -250,7 +355,7 @@ class MangaDetailsScreen extends ConsumerWidget {
                                       value: manga.format != null
                                           ? manga.format!
                                               .replaceAll('_', ' ')
-                                          : '-',
+                                          : 'Unknown',
                                     ),
                                   ],
                                 ),
@@ -271,6 +376,12 @@ class MangaDetailsScreen extends ConsumerWidget {
                                   totalVolumes: manga.volumes ?? 0,
                                   genres: manga.genres,
                                   author: manga.author,
+                                  mangaDexId: manga.mangaDexId,
+                                  aniListId: manga.aniListId,
+                                  malId: manga.idMal,
+                                  description: manga.description,
+                                  sourceName: manga.sourceName,
+                                  sourceType: 'manga',
                                 ),
 
                                 const SizedBox(height: 26),
@@ -282,21 +393,36 @@ class MangaDetailsScreen extends ConsumerWidget {
                                 const SizedBox(height: 24),
 
                                 FilledButton.icon(
-                                  onPressed: () {
-                                    context.push(
-                                      '/manga/${manga.id}/read/$currentChapter',
-                                      extra: {
-                                        'romajiTitle': manga.romajiTitle,
-                                        'englishTitle': manga.englishTitle,
-                                        'coverImage': manga.coverImage.isNotEmpty
-                                            ? manga.coverImage
-                                            : '',
-                                        'bannerImage': manga.bannerImage.isNotEmpty
-                                            ? manga.bannerImage
-                                            : '',
-                                        'totalChapters': manga.chapters ?? 100,
-                                      },
-                                    );
+                                  onPressed: () async {
+                                    String? lastReadChapterId;
+                                    if (progress != null) {
+                                      try {
+                                        final savedState = await IsarService.instance.chapterReadingStates
+                                            .filter()
+                                            .mangaIdEqualTo(manga.id)
+                                            .chapterNumberEqualTo(progress.lastReadChapter)
+                                            .findFirst();
+                                        lastReadChapterId = savedState?.chapterId;
+                                      } catch (_) {}
+                                    }
+
+                                    if (context.mounted) {
+                                      context.push(
+                                        '/manga/${manga.id}/read/$currentChapter',
+                                        extra: {
+                                          'romajiTitle': manga.romajiTitle,
+                                          'englishTitle': manga.englishTitle,
+                                          'coverImage': manga.coverImage.isNotEmpty
+                                              ? manga.coverImage
+                                              : '',
+                                          'bannerImage': manga.bannerImage.isNotEmpty
+                                              ? manga.bannerImage
+                                              : '',
+                                          'totalChapters': totalChaptersResolved,
+                                          'chapterId': lastReadChapterId,
+                                        },
+                                      );
+                                    }
                                   },
                                   icon: const Icon(Icons.menu_book),
                                   label: Text(
@@ -309,7 +435,7 @@ class MangaDetailsScreen extends ConsumerWidget {
 
                                 ChapterList(
                                   mangaId: manga.id,
-                                  totalChapters: manga.chapters ?? 50,
+                                  totalChapters: totalChaptersResolved,
                                   romajiTitle: manga.romajiTitle,
                                   englishTitle: manga.englishTitle,
                                   coverImage: manga.coverImage.isNotEmpty

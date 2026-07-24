@@ -138,7 +138,7 @@ class MangaRollScreen extends ConsumerWidget {
                             return RandomMangaCard(
                               manga: manga,
                               onTap: () {
-                                context.push('/manga/${manga.id}');
+                                context.push('/manga/${manga.id}?title=${Uri.encodeComponent(manga.title)}');
                               },
                             );
                           },

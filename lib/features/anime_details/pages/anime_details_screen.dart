@@ -10,6 +10,7 @@ import '../widgets/anime_banner.dart';
 import '../widgets/anime_poster.dart';
 import '../widgets/description_section.dart';
 import '../widgets/episode_list.dart';
+import '../../../core/utils/title_validator.dart';
 import '../widgets/favorite_button.dart';
 import '../widgets/genre_chip.dart';
 import '../widgets/score_badge.dart';
@@ -18,8 +19,13 @@ import '../../tracker/widgets/anime_tracking_section.dart';
 
 class AnimeDetailsScreen extends ConsumerWidget {
   final int animeId;
+  final String? selectedTitle;
 
-  const AnimeDetailsScreen({super.key, required this.animeId});
+  const AnimeDetailsScreen({
+    super.key,
+    required this.animeId,
+    this.selectedTitle,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -32,6 +38,39 @@ class AnimeDetailsScreen extends ConsumerWidget {
         loading: () => const SkeletonDetails(),
         onRetry: () => ref.invalidate(animeDetailsProvider(animeId)),
         data: (animeData) {
+          if (selectedTitle != null &&
+              !isTitleMatch(
+                selectedTitle,
+                romaji: animeData.romajiTitle,
+                english: animeData.englishTitle,
+                native: animeData.nativeTitle,
+              )) {
+            return Scaffold(
+              appBar: AppBar(
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+              body: const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error_outline, size: 64, color: Colors.purpleAccent),
+                      SizedBox(height: 16),
+                      Text(
+                        "Something went wrong while fetching this title. Please refresh or try another source.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
           final theme = Theme.of(context);
           final isTablet = MediaQuery.of(context).size.width >= 600;
 
@@ -118,7 +157,9 @@ class AnimeDetailsScreen extends ConsumerWidget {
   
                           // Romaji title
                           Text(
-                            animeData.romajiTitle,
+                            animeData.romajiTitle.isEmpty
+                                ? 'Unknown Title'
+                                : animeData.romajiTitle,
                             textAlign: TextAlign.center,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -181,9 +222,11 @@ class AnimeDetailsScreen extends ConsumerWidget {
                             alignment: WrapAlignment.center,
                             spacing: 8,
                             runSpacing: 8,
-                            children: animeData.genres
-                                .map((g) => GenreChip(genre: g))
-                                .toList(),
+                            children: animeData.genres.isEmpty
+                                ? [const GenreChip(genre: 'Unknown Genre')]
+                                : animeData.genres
+                                    .map((g) => GenreChip(genre: g))
+                                    .toList(),
                           ),
   
                           const SizedBox(height: 24),
@@ -200,27 +243,30 @@ class AnimeDetailsScreen extends ConsumerWidget {
                               _MetadataCard(
                                 icon: Icons.tv_rounded,
                                 title: 'Episodes',
-                                value: "${animeData.episodes ?? '?'} Ep",
+                                value: animeData.episodes != null
+                                    ? "${animeData.episodes} Ep"
+                                    : "Unknown",
                               ),
                               _MetadataCard(
                                 icon: Icons.business_rounded,
                                 title: 'Studio',
                                 value: animeData.studio.isEmpty
-                                    ? 'Unknown'
+                                    ? 'Unknown Studio'
                                     : animeData.studio,
                               ),
                               _MetadataCard(
                                 icon: Icons.schedule_rounded,
                                 title: 'Duration',
                                 value: animeData.duration == null
-                                    ? '-'
+                                    ? 'Unknown'
                                     : '${animeData.duration} min',
                               ),
                               _MetadataCard(
                                 icon: Icons.calendar_today_rounded,
                                 title: 'Season',
-                                value:
-                                    "${animeData.season ?? '-'} ${animeData.seasonYear ?? ''}",
+                                value: animeData.season != null
+                                    ? "${animeData.season} ${animeData.seasonYear ?? ''}"
+                                    : "Unknown Release Date",
                               ),
                             ],
                           ),

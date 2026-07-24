@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/favorite_anime.dart';
 import '../models/favorite_manga.dart';
 import '../repository/favorites_repository.dart';
+import '../../../core/sync/sync_service.dart';
 
 final favoritesRepositoryProvider =
     Provider<FavoritesRepository>(
@@ -62,6 +63,7 @@ final favoritesControllerProvider =
   (ref) {
     return FavoritesController(
       ref.read(favoritesRepositoryProvider),
+      ref,
     );
   },
 );
@@ -71,14 +73,16 @@ final mangaFavoritesControllerProvider =
   (ref) {
     return FavoritesController(
       ref.read(favoritesRepositoryProvider),
+      ref,
     );
   },
 );
 
 class FavoritesController {
-  FavoritesController(this._repository);
+  FavoritesController(this._repository, this._ref);
 
   final FavoritesRepository _repository;
+  final Ref _ref;
 
   // =========================
   // Anime
@@ -87,19 +91,19 @@ class FavoritesController {
   Future<void> addFavorite(
     FavoriteAnime anime,
   ) async {
-    await _repository.addFavorite(anime);
+    await _repository.addFavorite(anime, syncService: _ref.read(syncServiceProvider));
   }
 
   Future<void> removeFavorite(
     int animeId,
   ) async {
-    await _repository.removeFavorite(animeId);
+    await _repository.removeFavorite(animeId, syncService: _ref.read(syncServiceProvider));
   }
 
   Future<void> toggleFavorite(
     FavoriteAnime anime,
   ) async {
-    await _repository.toggleFavorite(anime);
+    await _repository.toggleFavorite(anime, syncService: _ref.read(syncServiceProvider));
   }
 
   Future<bool> isFavorite(
@@ -115,19 +119,19 @@ class FavoritesController {
   Future<void> addMangaFavorite(
     FavoriteManga manga,
   ) async {
-    await _repository.addMangaFavorite(manga);
+    await _repository.addMangaFavorite(manga, syncService: _ref.read(syncServiceProvider));
   }
 
   Future<void> removeMangaFavorite(
     int mangaId,
   ) async {
-    await _repository.removeMangaFavorite(mangaId);
+    await _repository.removeMangaFavorite(mangaId, syncService: _ref.read(syncServiceProvider));
   }
 
   Future<void> toggleMangaFavorite(
     FavoriteManga manga,
   ) async {
-    await _repository.toggleMangaFavorite(manga);
+    await _repository.toggleMangaFavorite(manga, syncService: _ref.read(syncServiceProvider));
   }
 
   Future<bool> isMangaFavorite(

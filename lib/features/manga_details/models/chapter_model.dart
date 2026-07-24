@@ -1,6 +1,6 @@
 class ChapterModel {
   final String? id;
-  final int number;
+  final String number;
   final String title;
   final String scanGroup;
   final String date;
@@ -12,6 +12,11 @@ class ChapterModel {
   final String? externalUrl;
   final List<ChapterModel> alternatives;
   final String source;
+  // New metadata fields
+  final String? mangaFireMangaId;
+  final String? sourceUrl;
+  final int? totalPages;
+  final int? createdAt;
 
   ChapterModel({
     this.id,
@@ -27,6 +32,10 @@ class ChapterModel {
     this.externalUrl,
     this.alternatives = const [],
     this.source = 'mangadex',
+    this.mangaFireMangaId,
+    this.sourceUrl,
+    this.totalPages,
+    this.createdAt,
   });
 
   factory ChapterModel.mock(int mangaId, int chapterNumber) {
@@ -39,7 +48,7 @@ class ChapterModel {
 
     return ChapterModel(
       id: null,
-      number: chapterNumber,
+      number: chapterNumber.toString(),
       title: 'Chapter $chapterNumber: An Unexpected Journey',
       scanGroup: 'Aurora Scanlations',
       date: 'July ${2 + chapterNumber}, 2026',
@@ -69,13 +78,17 @@ class ChapterModel {
       'externalUrl': externalUrl,
       'alternatives': alternatives.map((c) => c.toJson()).toList(),
       'source': source,
+      'mangaFireMangaId': mangaFireMangaId,
+      'sourceUrl': sourceUrl,
+      'totalPages': totalPages,
+      'createdAt': createdAt,
     };
   }
 
   factory ChapterModel.fromJson(Map<String, dynamic> json) {
     return ChapterModel(
       id: json['id'] as String?,
-      number: json['number'] as int,
+      number: (json['number'] ?? '0').toString(),
       title: json['title'] as String? ?? '',
       scanGroup: json['scanGroup'] as String? ?? '',
       date: json['date'] as String? ?? '',
@@ -90,6 +103,10 @@ class ChapterModel {
               .toList() ??
           const [],
       source: json['source'] as String? ?? 'mangadex',
+      mangaFireMangaId: json['mangaFireMangaId'] as String?,
+      sourceUrl: json['sourceUrl'] as String?,
+      totalPages: json['totalPages'] as int?,
+      createdAt: json['createdAt'] as int?,
     );
   }
 }

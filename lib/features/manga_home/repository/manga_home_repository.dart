@@ -2,7 +2,6 @@ import 'package:graphql_flutter/graphql_flutter.dart';
 import '../../../core/network/graphql_service.dart';
 import '../../../core/network/jikan/jikan_api.dart';
 import '../../../core/network/queries/manga_queries.dart';
-import '../../../core/network/mangadex/mangadex_api.dart';
 import '../../../core/error/app_failure.dart';
 import '../models/manga_home_model.dart';
 
@@ -15,10 +14,9 @@ enum MangaHomeSection {
 }
 
 class MangaHomeRepository {
-  final MangaDexApi _mangaDex;
   final JikanApi _jikan = JikanApi();
 
-  MangaHomeRepository({required MangaDexApi mangaDex}) : _mangaDex = mangaDex;
+  MangaHomeRepository();
 
   // In-memory session cache (mirrors HomeRepository) so a section is fetched
   // from whichever source succeeds at most once per [_cacheDuration].
@@ -93,183 +91,11 @@ class MangaHomeRepository {
       }
       return list;
     } catch (_) {
-      // AniList failed (403 / 429 / 500 / network) → fallback strategies.
-      // Trending: AniList -> MangaDex -> Jikan
-      // Best Ongoing: AniList -> MangaDex -> Jikan
-      // Latest Releases: AniList -> MangaDex Feed -> Jikan
-      // Top Rated Picks: AniList -> Jikan
-      // Popular This Week: AniList -> Jikan
-      
-      List<MangaHomeModel> list;
-      if (section == MangaHomeSection.trending) {
-        try {
-          list = await _fetchTrendingFromMangaDex();
-          if (list.isEmpty) throw Exception();
-        } catch (_) {
-          list = await _fetchMangaFromJikan(section);
-        }
-      } else if (section == MangaHomeSection.popular) {
-        try {
-          list = await _fetchBestOngoingFromMangaDex();
-          if (list.isEmpty) throw Exception();
-        } catch (_) {
-          list = await _fetchMangaFromJikan(section);
-        }
-      } else if (section == MangaHomeSection.latestReleases) {
-        try {
-          list = await _fetchLatestReleasesFromMangaDex();
-          if (list.isEmpty) throw Exception();
-        } catch (_) {
-          list = await _fetchMangaFromJikan(section);
-        }
-      } else {
-        list = await _fetchMangaFromJikan(section);
-      }
-
+      // AniList failed (403 / 429 / 500 / network) → fallback to Jikan.
+      final list = await _fetchMangaFromJikan(section);
       _cache[section] = list;
       _cacheTime[section] = DateTime.now();
       return list;
-    }
-  }
-
-  /// Helper to convert a MangaDex response item into MangaHomeModel.
-  MangaHomeModel _mangaFromMangaDex(Map<String, dynamic> item, [List<dynamic>? included]) {
-    final uuid = item['id'] as String? ?? '';
-    final id = MangaDexApi.uuidToId(uuid);
-    
-    final attrs = item['attributes'] as Map<String, dynamic>? ?? {};
-    final titleMap = attrs['title'] as Map<String, dynamic>? ?? {};
-    final title = titleMap['en'] ?? titleMap['ja-ro'] ?? titleMap.values.firstOrNull ?? 'Unknown';
-
-    // Cover art relationship
-    final relationships = item['relationships'] as List? ?? [];
-    String? coverFileName;
-    for (final rel in relationships) {
-      if (rel is Map && rel['type'] == 'cover_art') {
-        final relId = rel['id'] as String?;
-        if (included != null) {
-          final incObj = included.firstWhere(
-            (inc) => inc is Map && inc['type'] == 'cover_art' && inc['id'] == relId,
-            orElse: () => null,
-          );
-          if (incObj != null && incObj['attributes'] != null) {
-            coverFileName = incObj['attributes']['fileName'] as String?;
-          }
-        }
-      }
-    }
-
-    final coverImage = coverFileName != null
-        ? 'https://uploads.mangadex.org/covers/$uuid/$coverFileName'
-        : '';
-
-    final lastChStr = attrs['lastChapter'] as String?;
-    final chapters = lastChStr != null ? double.tryParse(lastChStr)?.toInt() : null;
-
-    final tags = attrs['tags'] as List? ?? [];
-    final genres = <String>[];
-    for (final tag in tags) {
-      if (tag is Map) {
-        final tagAttrs = tag['attributes'] as Map?;
-        if (tagAttrs != null) {
-          final tagNames = tagAttrs['name'] as Map?;
-          if (tagNames != null && tagNames['en'] != null) {
-            genres.add(tagNames['en'].toString());
-          }
-        }
-      }
-    }
-
-    return MangaHomeModel(
-      id: id,
-      title: title,
-      coverImage: coverImage,
-      averageScore: null,
-      genres: genres,
-      chapters: chapters,
-    );
-  }
-
-  Future<List<MangaHomeModel>> _fetchTrendingFromMangaDex() async {
-    try {
-      final res = await _mangaDex.searchManga({
-        'limit': '20',
-        'order[followedCount]': 'desc',
-        'includes[]': ['cover_art'],
-      });
-      final dataList = res['data'] as List? ?? [];
-      final included = res['included'] as List? ?? [];
-      return dataList
-          .whereType<Map<String, dynamic>>()
-          .map((item) => _mangaFromMangaDex(item, included))
-          .toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  Future<List<MangaHomeModel>> _fetchBestOngoingFromMangaDex() async {
-    try {
-      final res = await _mangaDex.searchManga({
-        'limit': '20',
-        'status[]': ['ongoing'],
-        'order[followedCount]': 'desc',
-        'includes[]': ['cover_art'],
-      });
-      final dataList = res['data'] as List? ?? [];
-      final included = res['included'] as List? ?? [];
-      return dataList
-          .whereType<Map<String, dynamic>>()
-          .map((item) => _mangaFromMangaDex(item, included))
-          .toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  Future<List<MangaHomeModel>> _fetchLatestReleasesFromMangaDex() async {
-    try {
-      final res = await _mangaDex.searchChapters({
-        'limit': '40',
-        'translatedLanguage[]': ['en'],
-        'order[publishAt]': 'desc',
-        'includes[]': ['manga', 'cover_art'],
-      });
-
-      final dataList = res['data'] as List? ?? [];
-      final included = res['included'] as List? ?? [];
-
-      final uniqueManga = <String, Map<String, dynamic>>{};
-      
-      for (final ch in dataList) {
-        if (ch is! Map) continue;
-        final rels = ch['relationships'] as List? ?? [];
-        final mangaRel = rels.firstWhere((r) => r is Map && r['type'] == 'manga', orElse: () => null);
-        if (mangaRel == null) continue;
-        final mangaId = mangaRel['id'] as String?;
-        if (mangaId == null) continue;
-
-        if (uniqueManga.containsKey(mangaId)) continue;
-
-        final mangaObj = included.firstWhere(
-          (inc) => inc is Map && inc['type'] == 'manga' && inc['id'] == mangaId,
-          orElse: () => null,
-        );
-
-        if (mangaObj != null) {
-          uniqueManga[mangaId] = mangaObj as Map<String, dynamic>;
-        }
-        if (uniqueManga.length >= 20) break;
-      }
-
-      final list = <MangaHomeModel>[];
-      uniqueManga.forEach((mangaId, mangaMap) {
-        list.add(_mangaFromMangaDex(mangaMap, included));
-      });
-
-      return list;
-    } catch (_) {
-      return [];
     }
   }
 

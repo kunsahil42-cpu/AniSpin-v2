@@ -68,7 +68,7 @@ void main() {
       final current = [
         ChapterModel(
           id: '1',
-          number: 1,
+          number: '1',
           title: 'Chapter 1',
           scanGroup: 'Aurora',
           date: 'July 1, 2026',
@@ -77,7 +77,7 @@ void main() {
         ),
         ChapterModel(
           id: '2',
-          number: 2,
+          number: '2',
           title: 'Chapter 2',
           scanGroup: 'Aurora',
           date: 'July 2, 2026',
@@ -88,8 +88,8 @@ void main() {
 
       final network = [
         ChapterModel(
-          id: '2-new',
-          number: 2,
+          id: '2',
+          number: '2',
           title: 'Chapter 2 (Updated)',
           scanGroup: 'Aurora',
           date: 'July 2, 2026',
@@ -98,7 +98,7 @@ void main() {
         ),
         ChapterModel(
           id: '3',
-          number: 3,
+          number: '3',
           title: 'Chapter 3',
           scanGroup: 'Aurora',
           date: 'July 3, 2026',
@@ -107,19 +107,25 @@ void main() {
         ),
       ];
 
-      final Map<int, ChapterModel> mergedMap = {
-        for (final c in current) c.number: c,
+      final Map<String, ChapterModel> mergedMap = {
+        for (final c in current) '${c.number}_${c.id}': c,
       };
 
-      final newChs = <int>{};
+      final newChs = <String>{};
       for (final c in network) {
-        if (!mergedMap.containsKey(c.number)) {
+        final key = '${c.number}_${c.id}';
+        if (!mergedMap.containsKey(key)) {
           newChs.add(c.number);
         }
-        mergedMap[c.number] = c;
+        mergedMap[key] = c;
       }
 
-      final mergedList = mergedMap.values.toList()..sort((a, b) => a.number.compareTo(b.number));
+      final mergedList = mergedMap.values.toList()
+        ..sort((a, b) {
+          final numA = double.tryParse(a.number) ?? 0.0;
+          final numB = double.tryParse(b.number) ?? 0.0;
+          return numA.compareTo(numB);
+        });
 
       // 1. Should have exactly 3 chapters (no duplicates)
       expect(mergedList.length, equals(3));
@@ -128,8 +134,8 @@ void main() {
       expect(mergedList[1].pages.length, equals(1));
       // 3. New chapters set should contain exactly Chapter 3
       expect(newChs.length, equals(1));
-      expect(newChs.contains(3), isTrue);
-      expect(newChs.contains(2), isFalse);
+      expect(newChs.contains('3'), isTrue);
+      expect(newChs.contains('2'), isFalse);
     });
 
     test('Calculates actualTotal correctly based on nextAiringEpisode', () {

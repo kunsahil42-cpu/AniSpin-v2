@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/chapter_cache.dart';
-import '../../../core/network/mangadex/mangadex_api.dart';
 import '../../../core/source_fallback/source_fallback_manager.dart';
 import '../models/manga_details_model.dart';
 import '../repository/manga_details_repository.dart';
@@ -12,10 +11,9 @@ import '../../../core/error/app_failure.dart';
 
 import '../models/chapter_model.dart';
 
-// Repository provider that depends on MangaDexApi
+// Repository provider
 final mangaDetailsRepositoryProvider = Provider<MangaDetailsRepository>((ref) {
-  final mangaDexApi = ref.read(mangaDexApiProvider);
-  return MangaDetailsRepository(dexApi: mangaDexApi);
+  return MangaDetailsRepository();
 });
 
 // Provider for manga details that returns a Future<MangaDetailsModel>
@@ -59,23 +57,30 @@ class MangaChaptersNotifier extends FamilyAsyncNotifier<List<ChapterModel>, int>
     final chapters = await _fetchFromNetwork(mangaId);
 
     // Merge network chapters with existing cached chapters to avoid duplicates
-    final Map<int, ChapterModel> mergedMap = {
-      for (final c in currentChapters) c.number: c,
+    // Using c.number + '_' + c.id as key to support duplicate chapter numbers (e.g. Official and Unofficial)
+    final Map<String, ChapterModel> mergedMap = {
+      for (final c in currentChapters) '${c.number}_${c.id}': c,
     };
 
-    final newChs = <int>{};
+    final newChs = <String>{};
     for (final c in chapters) {
-      if (!mergedMap.containsKey(c.number)) {
+      final key = '${c.number}_${c.id}';
+      if (!mergedMap.containsKey(key)) {
         newChs.add(c.number);
       }
-      mergedMap[c.number] = c;
+      mergedMap[key] = c;
     }
 
     if (newChs.isNotEmpty && currentChapters.isNotEmpty) {
       ref.read(newChaptersProvider(mangaId).notifier).state = newChs;
     }
 
-    final mergedList = mergedMap.values.toList()..sort((a, b) => a.number.compareTo(b.number));
+    final mergedList = mergedMap.values.toList()
+      ..sort((a, b) {
+        final numA = double.tryParse(a.number) ?? 0.0;
+        final numB = double.tryParse(b.number) ?? 0.0;
+        return numA.compareTo(numB);
+      });
     await ChapterCache.saveChapters(mangaId, mergedList);
     state = AsyncValue.data(mergedList);
     return mergedList;
@@ -93,4 +98,4 @@ final mangaChaptersProvider =
   return MangaChaptersNotifier();
 });
 
-final newChaptersProvider = StateProvider.family<Set<int>, int>((ref, mangaId) => {});
+final newChaptersProvider = StateProvider.family<Set<String>, int>((ref, mangaId) => {});

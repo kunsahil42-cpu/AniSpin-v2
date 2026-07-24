@@ -18,17 +18,16 @@ class JikanFieldUtils {
   }
 
   static String cover(Map<String, dynamic> j) {
-    final jpg = (j['images'] as Map<String, dynamic>?)?['jpg']
-        as Map<String, dynamic>?;
+    final images = j['images'] as Map?;
+    final jpg = images?['jpg'] as Map?;
     return string(jpg?['large_image_url'] ?? jpg?['image_url']);
   }
 
   /// Jikan has no banner field; the trailer's max thumbnail is the best proxy.
   static String banner(Map<String, dynamic> j) {
-    final trailerImages =
-        (j['trailer'] as Map<String, dynamic>?)?['images']
-            as Map<String, dynamic>?;
-    return string(trailerImages?['maximum_image_url']);
+    final trailer = j['trailer'] as Map?;
+    final images = trailer?['images'] as Map?;
+    return string(images?['maximum_image_url']);
   }
 
   /// Jikan scores are 0–10; AniList averageScore is 0–100.
@@ -43,12 +42,13 @@ class JikanFieldUtils {
   }
 
   static List<String> genres(Map<String, dynamic> j) {
-    return (j['genres'] as List?)
-            ?.whereType<Map<String, dynamic>>()
-            .map((g) => g['name']?.toString() ?? '')
-            .where((s) => s.isNotEmpty)
-            .toList() ??
-        <String>[];
+    final list = j['genres'] as List?;
+    if (list == null) return <String>[];
+    return list
+        .whereType<Map>()
+        .map((g) => g['name']?.toString() ?? '')
+        .where((s) => s.isNotEmpty)
+        .toList();
   }
 
   static String firstStudio(Map<String, dynamic> j) {

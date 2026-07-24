@@ -58,9 +58,11 @@ final GoRouter appRouter = GoRouter(
         final animeId = int.parse(
           state.pathParameters['id']!,
         );
+        final title = state.uri.queryParameters['title'];
 
         return AnimeDetailsScreen(
           animeId: animeId,
+          selectedTitle: title,
         );
       },
     ),
@@ -71,9 +73,11 @@ final GoRouter appRouter = GoRouter(
         final mangaId = int.parse(
           state.pathParameters['id']!,
         );
+        final title = state.uri.queryParameters['title'];
 
         return MangaDetailsScreen(
           mangaId: mangaId,
+          selectedTitle: title,
         );
       },
     ),
@@ -103,12 +107,13 @@ final GoRouter appRouter = GoRouter(
       path: '/manga/:id/read/:chapter',
       builder: (context, state) {
         final mangaId = int.parse(state.pathParameters['id']!);
-        final chapter = int.parse(state.pathParameters['chapter']!);
+        final chapter = state.pathParameters['chapter']!;
         final extra = state.extra as Map<String, dynamic>;
 
         return MangaReaderScreen(
           mangaId: mangaId,
           chapterNumber: chapter,
+          chapterId: extra['chapterId'] as String?,
           romajiTitle: extra['romajiTitle'] as String,
           englishTitle: extra['englishTitle'] as String?,
           coverImage: extra['coverImage'] as String,

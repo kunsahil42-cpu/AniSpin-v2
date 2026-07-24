@@ -26,7 +26,10 @@ class StatusChip extends StatelessWidget {
   }
 
   String _getText() {
-    return (status ?? 'Unknown').replaceAll('_', ' ');
+    if (status == null || status!.isEmpty || status == 'Unknown') {
+      return 'Unknown Status';
+    }
+    return status!.replaceAll('_', ' ');
   }
 
   @override

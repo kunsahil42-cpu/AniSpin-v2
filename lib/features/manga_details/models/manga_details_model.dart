@@ -28,8 +28,10 @@ class MangaDetailsModel {
   final int? popularity;
 
   final String author;
-  
   final bool isAdult;
+  final String? mangaDexId;
+  final int? aniListId;
+  final String? sourceName;
 
   MangaDetailsModel({
     required this.id,
@@ -49,6 +51,9 @@ class MangaDetailsModel {
     required this.popularity,
     required this.author,
     this.isAdult = false,
+    this.mangaDexId,
+    this.aniListId,
+    this.sourceName,
   });
 
   factory MangaDetailsModel.fromJson(
@@ -98,6 +103,9 @@ class MangaDetailsModel {
                       ['node']['name']['full'] ??
                   ''
               : '',
+      mangaDexId: null,
+      aniListId: json['id'],
+      sourceName: 'anilist',
     );
   }
 }

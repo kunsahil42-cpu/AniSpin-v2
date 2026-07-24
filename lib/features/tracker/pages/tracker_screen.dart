@@ -7,7 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/tracker_providers.dart';
 import '../models/watch_progress.dart';
 import '../models/reading_progress.dart';
-import '../../../core/database/isar_service.dart';
+
 
 class TrackerScreen extends ConsumerStatefulWidget {
   const TrackerScreen({super.key});
@@ -56,10 +56,7 @@ class _TrackerScreenState extends ConsumerState<TrackerScreen> with SingleTicker
       _pendingAnime.add(item.animeId);
     });
 
-    final isar = IsarService.instance;
-    await isar.writeTxn(() async {
-      await isar.watchProgress.delete(item.id);
-    });
+    await repo.deleteProgress(item);
     ref.invalidate(continueWatchingProvider);
     ref.invalidate(animeProgressProvider(item.animeId));
 
@@ -110,10 +107,7 @@ class _TrackerScreenState extends ConsumerState<TrackerScreen> with SingleTicker
       _pendingManga.add(item.mangaId);
     });
 
-    final isar = IsarService.instance;
-    await isar.writeTxn(() async {
-      await isar.readingProgress.delete(item.id);
-    });
+    await repo.deleteProgress(item);
     ref.invalidate(continueReadingProvider);
     ref.invalidate(mangaProgressProvider(item.mangaId));
 
@@ -291,7 +285,7 @@ class _TrackerScreenState extends ConsumerState<TrackerScreen> with SingleTicker
                             item: item,
                             onTap: () {
                               context.push(
-                                '/anime/${item.animeId}',
+                                '/anime/${item.animeId}?title=${Uri.encodeComponent(item.romajiTitle)}',
                               );
                             },
                             onDelete: () => _runUndoableWatchRemoval(item),
@@ -371,7 +365,7 @@ class _TrackerScreenState extends ConsumerState<TrackerScreen> with SingleTicker
                             item: item,
                             onTap: () {
                               context.push(
-                                '/manga/${item.mangaId}',
+                                '/manga/${item.mangaId}?title=${Uri.encodeComponent(item.romajiTitle)}',
                               );
                             },
                             onDelete: () => _runUndoableMangaRemoval(item),
@@ -930,14 +924,14 @@ class _WatchProgressTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     LinearProgressIndicator(
-                      value: item.watchPercentage,
+                      value: (item.watchPercentage.isNaN || item.watchPercentage.isInfinite) ? 0.0 : item.watchPercentage,
                       backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
                       valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
                       minHeight: 4,
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${(item.watchPercentage * 100).toInt()}% completed',
+                      '${((item.watchPercentage.isNaN || item.watchPercentage.isInfinite) ? 0.0 : item.watchPercentage * 100).toInt()}% completed',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
@@ -1013,14 +1007,14 @@ class _ReadingProgressTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     LinearProgressIndicator(
-                      value: item.readingPercentage,
+                      value: (item.readingPercentage.isNaN || item.readingPercentage.isInfinite) ? 0.0 : item.readingPercentage,
                       backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
                       valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
                       minHeight: 4,
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${(item.readingPercentage * 100).toInt()}% completed',
+                      '${((item.readingPercentage.isNaN || item.readingPercentage.isInfinite) ? 0.0 : item.readingPercentage * 100).toInt()}% completed',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       ),

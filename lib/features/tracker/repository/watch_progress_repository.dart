@@ -1,8 +1,13 @@
 import 'package:isar/isar.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/isar_service.dart';
+import '../../../core/sync/sync_service.dart';
 import '../models/watch_progress.dart';
 
 class WatchProgressRepository {
+  final Ref? _ref;
+  WatchProgressRepository([this._ref]);
+
   Isar get _isar => IsarService.instance;
 
   Future<void> saveProgress(WatchProgress progress) async {
@@ -17,6 +22,24 @@ class WatchProgressRepository {
       }
       await _isar.collection<WatchProgress>().put(progress);
     });
+
+    if (_ref != null && progress.animeId != -999) {
+      try {
+        _ref.read(syncServiceProvider).syncAnimeProgress(progress);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> deleteProgress(WatchProgress progress) async {
+    await _isar.writeTxn(() async {
+      await _isar.watchProgress.delete(progress.id);
+    });
+
+    if (_ref != null && progress.animeId != -999) {
+      try {
+        _ref.read(syncServiceProvider).syncDeleteProgress(progress.animeId, progress.malId, false);
+      } catch (_) {}
+    }
   }
 
   Future<WatchProgress?> getProgress(int animeId) async {

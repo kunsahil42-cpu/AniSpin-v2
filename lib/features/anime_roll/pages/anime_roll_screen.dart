@@ -138,7 +138,7 @@ class AnimeRollScreen extends ConsumerWidget {
                             return RandomAnimeCard(
                               anime: anime,
                               onTap: () {
-                                context.push('/anime/${anime.id}');
+                                context.push('/anime/${anime.id}?title=${Uri.encodeComponent(anime.title)}');
                               },
                             );
                           },

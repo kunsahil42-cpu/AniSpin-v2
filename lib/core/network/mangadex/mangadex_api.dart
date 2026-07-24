@@ -143,6 +143,48 @@ class MangaDexApi {
       if (offset + limit > maxOffset) {
         // Cannot advance further without exceeding MangaDex's offset ceiling.
         _log('Reached MangaDex offset ceiling for $mangaDexId ($total entries).');
+        
+        // If we hit the ceiling, fetch from the end of the feed in descending order to fill the gap.
+        _log('Fetching descending feed for $mangaDexId to resolve truncated chapters...');
+        int descOffset = 0;
+        while (true) {
+          final descParams = <String, dynamic>{
+            'translatedLanguage[]': ['en'],
+            'limit': limit.toString(),
+            'offset': descOffset.toString(),
+            'order[chapter]': 'desc',
+            'contentRating[]': ['safe', 'suggestive', 'erotica', 'pornographic'],
+            'includes[]': ['scanlation_group'],
+            ...?queryParams,
+          };
+          if (queryParams != null &&
+              queryParams.containsKey('translatedLanguage[]') &&
+              queryParams['translatedLanguage[]'] == null) {
+            descParams.remove('translatedLanguage[]');
+          }
+
+          final descPath = _buildPath('/manga/$mangaDexId/feed', descParams);
+          Map<String, dynamic> descResponse;
+          try {
+            descResponse = await _requestWithRetry(descPath);
+          } catch (de) {
+            _log('Descending feed page at offset $descOffset for $mangaDexId failed: $de');
+            break;
+          }
+
+          final descData = descResponse['data'] as List?;
+          if (descData == null || descData.isEmpty) break;
+
+          allData.addAll(descData);
+
+          final descTotal = descResponse['total'] as int? ?? 0;
+          descOffset += limit;
+          if (descOffset >= descTotal) break;
+          if (descOffset + limit > maxOffset) {
+            _log('Reached Descending MangaDex offset ceiling for $mangaDexId ($descTotal entries).');
+            break;
+          }
+        }
         break;
       }
     }
@@ -385,14 +427,18 @@ class MangaDexApi {
     // 1. Query by AniList ID if available
     if (aniListId != null) {
       try {
-        final path = '/manga?links[al]=${aniListId.toString()}&includes[]=author';
+        final path = '/manga?externalIds[al][]=${aniListId.toString()}&includes[]=author';
         final response = await _requestWithRetry(path);
         final data = response['data'] as List?;
         if (data != null && data.isNotEmpty) {
           for (final item in data) {
             final id = item['id'] as String?;
-            if (id != null && !candidates.contains(id)) {
+            final attrs = item['attributes'] as Map<String, dynamic>? ?? {};
+            final links = attrs['links'] as Map<String, dynamic>? ?? {};
+            final alVal = links['al']?.toString();
+            if (id != null && alVal == aniListId.toString() && !candidates.contains(id)) {
               candidates.add(id);
+              registerMapping(aniListId, id);
             }
           }
         }
@@ -402,14 +448,18 @@ class MangaDexApi {
     // 2. Query by MAL ID if available
     if (malId != null) {
       try {
-        final path = '/manga?links[mal]=${malId.toString()}&includes[]=author';
+        final path = '/manga?externalIds[mal][]=${malId.toString()}&includes[]=author';
         final response = await _requestWithRetry(path);
         final data = response['data'] as List?;
         if (data != null && data.isNotEmpty) {
           for (final item in data) {
             final id = item['id'] as String?;
-            if (id != null && !candidates.contains(id)) {
+            final attrs = item['attributes'] as Map<String, dynamic>? ?? {};
+            final links = attrs['links'] as Map<String, dynamic>? ?? {};
+            final malVal = links['mal']?.toString();
+            if (id != null && malVal == malId.toString() && !candidates.contains(id)) {
               candidates.add(id);
+              registerMapping(malId, id);
             }
           }
         }
@@ -424,24 +474,46 @@ class MangaDexApi {
       return candidates;
     }
 
-    // 3. Fallback to title search (only when no authoritative link matched)
+    // 3. Fallback to title search
     try {
       final encodedTitle = Uri.encodeComponent(title);
-      final path = '/manga?title=$encodedTitle&limit=100&includes[]=author'
+      final path = '/manga?title=$encodedTitle&limit=10&includes[]=author'
           '&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&contentRating[]=pornographic';
       final response = await _requestWithRetry(path);
       final data = response['data'] as List?;
       if (data != null && data.isNotEmpty) {
+        final List<String> exactMatches = [];
+        final List<String> otherMatches = [];
         for (final item in data) {
           final id = item['id'] as String?;
-          if (id != null && !candidates.contains(id)) {
-            candidates.add(id);
+          if (id == null) continue;
+
+          final attrs = item['attributes'] as Map<String, dynamic>? ?? {};
+          final links = attrs['links'] as Map<String, dynamic>? ?? {};
+          final alVal = links['al']?.toString();
+          final malVal = links['mal']?.toString();
+
+          if ((aniListId != null && alVal == aniListId.toString()) ||
+              (malId != null && malVal == malId.toString())) {
+            exactMatches.add(id);
+            if (aniListId != null && alVal == aniListId.toString()) {
+              registerMapping(aniListId, id);
+            }
+            if (malId != null && malVal == malId.toString()) {
+              registerMapping(malId, id);
+            }
+          } else {
+            otherMatches.add(id);
           }
         }
+
+        if (exactMatches.isNotEmpty) {
+          candidates.addAll(exactMatches);
+        } else {
+          candidates.addAll(otherMatches);
+        }
       }
-    } catch (e) {
-      _log('Failed to query title "$title" in findMangaDexIds: $e');
-    }
+    } catch (_) {}
 
     return candidates;
   }

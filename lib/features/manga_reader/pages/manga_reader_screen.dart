@@ -7,9 +7,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/source_fallback/source_fallback_manager.dart';
 import '../../manga_details/providers/manga_details_provider.dart';
+import '../../manga_details/models/chapter_model.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../../settings/models/app_settings.dart';
 import '../../tracker/providers/tracker_providers.dart';
@@ -17,10 +19,14 @@ import '../../tracker/models/reading_progress.dart';
 import '../widgets/navigation_controls.dart';
 import '../widgets/reader_image.dart';
 import '../widgets/zoomable_widget.dart';
+import 'package:isar/isar.dart';
+import '../../../core/database/isar_service.dart';
+import '../models/chapter_reading_state.dart';
 
 class MangaReaderScreen extends ConsumerStatefulWidget {
   final int mangaId;
-  final int chapterNumber;
+  final String chapterNumber;
+  final String? chapterId;
   final String romajiTitle;
   final String? englishTitle;
   final String coverImage;
@@ -31,6 +37,7 @@ class MangaReaderScreen extends ConsumerStatefulWidget {
     super.key,
     required this.mangaId,
     required this.chapterNumber,
+    this.chapterId,
     required this.romajiTitle,
     this.englishTitle,
     required this.coverImage,
@@ -55,6 +62,14 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
   int _currentVerticalPage = 0;
   final List<GlobalKey> _pageKeys = [];
   Timer? _progressDebounceTimer;
+
+  String? _resolvedSource;
+  String? _resolvedChapterId;
+  bool _resolvedIsColored = false;
+
+  String? _currentLanguage;
+  ChapterModel? _prevChapter;
+  ChapterModel? _nextChapter;
 
   int get _currentPage {
     final settings = ref.read(settingsNotifierProvider);
@@ -184,46 +199,116 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
     });
 
     try {
-      final chapters = await ref.read(mangaChaptersProvider(widget.mangaId).future);
-      final chapter = chapters.firstWhere(
-        (c) => c.number == widget.chapterNumber,
-        orElse: () => throw Exception('Chapter ${widget.chapterNumber} not found'),
-      );
-
       final fallbackManager = ref.read(sourceFallbackManagerProvider);
-      final candidates = [chapter, ...chapter.alternatives];
       final settings = ref.read(settingsNotifierProvider);
       final useDataSaver = settings.imageQuality != ImageQualityOption.high;
-      
+
+      // Check for saved per-chapter source decision in Isar
+      ChapterReadingState? savedState;
+      try {
+        if (widget.chapterId != null) {
+          savedState = await IsarService.instance.chapterReadingStates
+              .filter()
+              .mangaIdEqualTo(widget.mangaId)
+              .chapterIdEqualTo(widget.chapterId)
+              .findFirst();
+        }
+        if (savedState == null) {
+          final targetNum = double.tryParse(widget.chapterNumber)?.toInt() ?? 0;
+          savedState = await IsarService.instance.chapterReadingStates
+              .filter()
+              .mangaIdEqualTo(widget.mangaId)
+              .chapterNumberEqualTo(targetNum)
+              .findFirst();
+        }
+      } catch (_) {}
+
       bool loaded = false;
       List<String> pages = [];
       String? fallbackExternalUrl;
 
-      for (final candidate in candidates) {
-        if (candidate.isExternal) {
-          if (candidate.externalUrl != null && candidate.externalUrl!.isNotEmpty) {
-            fallbackExternalUrl ??= candidate.externalUrl;
-          }
-          continue;
-        }
-
-        final chapterId = candidate.id;
-        if (chapterId == null) continue;
-
+      if (savedState != null && savedState.chapterId != null) {
+        _resolvedSource = savedState.selectedSource;
+        _resolvedChapterId = savedState.chapterId;
+        _resolvedIsColored = savedState.isColored;
         try {
           final fetchedPages = await fallbackManager.getChapterPages(
-            chapterId: chapterId,
-            source: candidate.source,
+            chapterId: _resolvedChapterId!,
+            source: _resolvedSource!,
             useDataSaver: useDataSaver,
           );
           if (fetchedPages.isNotEmpty) {
             pages = fetchedPages;
             loaded = true;
-            break;
           }
         } catch (e) {
           if (kDebugMode) {
-            debugPrint('[MangaReaderScreen] Failed to load pages for candidate: ${candidate.scanGroup} (${candidate.language}): $e');
+            debugPrint('[MangaReaderScreen] Failed to load pages from cached source: $_resolvedSource: $e');
+          }
+        }
+      }
+
+      if (!loaded && widget.chapterId != null) {
+        _resolvedSource = 'mangadot';
+        _resolvedChapterId = widget.chapterId;
+        _resolvedIsColored = false;
+        try {
+          final fetchedPages = await fallbackManager.getChapterPages(
+            chapterId: _resolvedChapterId!,
+            source: _resolvedSource!,
+            useDataSaver: useDataSaver,
+          );
+          if (fetchedPages.isNotEmpty) {
+            pages = fetchedPages;
+            loaded = true;
+          }
+        } catch (_) {}
+      }
+
+      if (!loaded) {
+        final chapters = await ref.read(mangaChaptersProvider(widget.mangaId).future);
+        final targetNum = double.tryParse(widget.chapterNumber) ?? 0.0;
+        final chapter = chapters.firstWhere(
+          (c) {
+            if (widget.chapterId != null) {
+              return c.id == widget.chapterId;
+            }
+            final cNum = double.tryParse(c.number) ?? 0.0;
+            return cNum == targetNum;
+          },
+          orElse: () => throw Exception('No chapters are currently available for this chapter.'),
+        );
+
+        final candidates = [chapter, ...chapter.alternatives];
+        for (final candidate in candidates) {
+          if (candidate.isExternal) {
+            if (candidate.externalUrl != null && candidate.externalUrl!.isNotEmpty) {
+              fallbackExternalUrl ??= candidate.externalUrl;
+            }
+            continue;
+          }
+
+          final chapterId = candidate.id;
+          if (chapterId == null) continue;
+
+          try {
+            final fetchedPages = await fallbackManager.getChapterPages(
+              chapterId: chapterId,
+              source: candidate.source,
+              useDataSaver: useDataSaver,
+            );
+            if (fetchedPages.isNotEmpty) {
+              pages = fetchedPages;
+              loaded = true;
+              _resolvedSource = candidate.source;
+              _resolvedChapterId = chapterId;
+              _resolvedIsColored = candidate.isColored;
+              break;
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              debugPrint('[MangaReaderScreen] Failed to load pages for candidate: ${candidate.scanGroup} (${candidate.language}): $e');
+            }
           }
         }
       }
@@ -235,6 +320,8 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
               _externalUrl = fallbackExternalUrl;
               _isLoading = false;
             });
+            _updateReadingProgressForExternal();
+            _handleAutoLaunchExternal(fallbackExternalUrl);
           }
           return;
         }
@@ -249,11 +336,15 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
         });
 
         int initialPage = 0;
-        final settings = ref.read(settingsNotifierProvider);
         if (settings.rememberLastPage) {
-          final progress = await ref.read(readingProgressRepositoryProvider).getProgress(widget.mangaId);
-          if (progress != null && progress.lastReadChapter == widget.chapterNumber) {
-            initialPage = (progress.lastReadPage - 1).clamp(0, pages.length - 1);
+          if (savedState != null) {
+            initialPage = (savedState.lastReadPage - 1).clamp(0, pages.length - 1);
+          } else {
+            final progress = await ref.read(readingProgressRepositoryProvider).getProgress(widget.mangaId);
+            final targetChInt = double.tryParse(widget.chapterNumber)?.toInt() ?? 0;
+            if (progress != null && progress.lastReadChapter == targetChInt) {
+              initialPage = (progress.lastReadPage - 1).clamp(0, pages.length - 1);
+            }
           }
         }
 
@@ -272,15 +363,50 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
             _scrollToVerticalPage(initialPage);
           });
         }
+
+        _resolvePrevNextChapters();
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
           _isLoading = false;
         });
       }
     }
+  }
+
+  Future<void> _resolvePrevNextChapters() async {
+    try {
+      final chapters = await ref.read(mangaChaptersProvider(widget.mangaId).future);
+      final currentChapter = chapters.firstWhere(
+        (c) => c.id == _resolvedChapterId,
+        orElse: () {
+          final targetNum = double.tryParse(widget.chapterNumber) ?? 0.0;
+          return chapters.firstWhere((c) => (double.tryParse(c.number) ?? 0.0) == targetNum);
+        },
+      );
+
+      _currentLanguage = currentChapter.language;
+
+      // Filter chapters by current language
+      final filtered = chapters.where((c) => c.language.toUpperCase() == _currentLanguage?.toUpperCase()).toList();
+
+      // Sort ascending numerically by chapter number
+      filtered.sort((a, b) {
+        final numA = double.tryParse(a.number) ?? 0.0;
+        final numB = double.tryParse(b.number) ?? 0.0;
+        return numA.compareTo(numB);
+      });
+
+      final curIndex = filtered.indexWhere((c) => c.id == _resolvedChapterId);
+      if (mounted) {
+        setState(() {
+          _prevChapter = (curIndex > 0) ? filtered[curIndex - 1] : null;
+          _nextChapter = (curIndex < filtered.length - 1) ? filtered[curIndex + 1] : null;
+        });
+      }
+    } catch (_) {}
   }
 
   void _preloadPages(int currentIndex) {
@@ -322,12 +448,11 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
     }
   }
 
-  Future<void> _updateReadingProgress(int pageIndex) async {
-    if (_pages.isEmpty || !mounted) return;
-
+  Future<void> _updateReadingProgressForExternal() async {
     try {
       final repo = ref.read(readingProgressRepositoryProvider);
       var progress = await repo.getProgress(widget.mangaId);
+      final chInt = double.tryParse(widget.chapterNumber)?.toInt() ?? 0;
 
       if (progress == null) {
         progress = ReadingProgress()
@@ -337,26 +462,135 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
           ..coverImage = widget.coverImage
           ..bannerImage = widget.bannerImage
           ..totalChapters = widget.totalChapters
-          ..lastReadChapter = widget.chapterNumber
-          ..lastReadPage = pageIndex + 1
-          ..readingPercentage = (pageIndex + 1) / _pages.length
+          ..lastReadChapter = chInt
+          ..lastReadPage = 1
+          ..readingPercentage = widget.totalChapters > 0 ? chInt / widget.totalChapters : 0.0
           ..lastReadAt = DateTime.now()
-          ..completedChapters = [];
+          ..completedChapters = [chInt];
       } else {
         progress
-          ..lastReadChapter = widget.chapterNumber
-          ..lastReadPage = pageIndex + 1
-          ..readingPercentage = (pageIndex + 1) / _pages.length
+          ..lastReadChapter = chInt
+          ..lastReadPage = 1
+          ..readingPercentage = widget.totalChapters > 0 ? chInt / widget.totalChapters : 0.0
           ..lastReadAt = DateTime.now();
-      }
-
-      if (pageIndex == _pages.length - 1) {
-        if (!progress.completedChapters.contains(widget.chapterNumber)) {
-          progress.completedChapters.add(widget.chapterNumber);
+        if (!progress.completedChapters.contains(chInt)) {
+          progress.completedChapters = List<int>.from(progress.completedChapters)..add(chInt);
         }
       }
 
       await repo.saveProgress(progress);
+
+      ref.invalidate(mangaProgressProvider(widget.mangaId));
+      ref.invalidate(continueReadingProvider);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[MangaReaderScreen] Error saving external reading progress: $e');
+      }
+    }
+  }
+
+  void _handleAutoLaunchExternal(String url) {
+    final settings = ref.read(settingsNotifierProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      switch (settings.externalChapterOption) {
+        case ExternalChapterOption.openInBrowser:
+          final uri = Uri.parse(url);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+          break;
+        case ExternalChapterOption.openInChromeCustomTabs:
+          final uri = Uri.parse(url);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+          }
+          break;
+        case ExternalChapterOption.copyLinkOnly:
+          await Clipboard.setData(ClipboardData(text: url));
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Link copied to clipboard!')),
+            );
+          }
+          break;
+        case ExternalChapterOption.alwaysAsk:
+          break;
+      }
+    });
+  }
+
+  Future<void> _updateReadingProgress(int pageIndex) async {
+    if (_pages.isEmpty || !mounted) return;
+
+    try {
+      final repo = ref.read(readingProgressRepositoryProvider);
+      var progress = await repo.getProgress(widget.mangaId);
+      final chInt = double.tryParse(widget.chapterNumber)?.toInt() ?? 0;
+
+      if (progress == null) {
+        progress = ReadingProgress()
+          ..mangaId = widget.mangaId
+          ..romajiTitle = widget.romajiTitle
+          ..englishTitle = widget.englishTitle
+          ..coverImage = widget.coverImage
+          ..bannerImage = widget.bannerImage
+          ..totalChapters = widget.totalChapters
+          ..lastReadChapter = chInt
+          ..lastReadPage = pageIndex + 1
+          ..readingPercentage = _pages.isNotEmpty ? (pageIndex + 1) / _pages.length : 0.0
+          ..lastReadAt = DateTime.now()
+          ..completedChapters = [];
+      } else {
+        progress
+          ..lastReadChapter = chInt
+          ..lastReadPage = pageIndex + 1
+          ..readingPercentage = _pages.isNotEmpty ? (pageIndex + 1) / _pages.length : 0.0
+          ..lastReadAt = DateTime.now();
+      }
+
+      if (pageIndex == _pages.length - 1) {
+        if (!progress.completedChapters.contains(chInt)) {
+          progress.completedChapters = List<int>.from(progress.completedChapters)..add(chInt);
+        }
+      }
+
+      await repo.saveProgress(progress);
+
+      // Save/update chapter level reading progress with selected source decision
+      try {
+        final isar = IsarService.instance;
+        ChapterReadingState? existingState;
+        if (_resolvedChapterId != null) {
+          existingState = await isar.chapterReadingStates
+              .filter()
+              .mangaIdEqualTo(widget.mangaId)
+              .chapterIdEqualTo(_resolvedChapterId)
+              .findFirst();
+        }
+        if (existingState == null) {
+          existingState = await isar.chapterReadingStates
+              .filter()
+              .mangaIdEqualTo(widget.mangaId)
+              .chapterNumberEqualTo(chInt)
+              .findFirst();
+        }
+
+        final newState = (existingState ?? ChapterReadingState())
+          ..mangaId = widget.mangaId
+          ..chapterNumber = chInt
+          ..chapterId = _resolvedChapterId
+          ..selectedSource = _resolvedSource ?? 'mangadot'
+          ..isColored = _resolvedIsColored
+          ..lastReadPage = pageIndex + 1;
+
+        await isar.writeTxn(() async {
+          await isar.chapterReadingStates.put(newState);
+        });
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[MangaReaderScreen] Failed to save chapter reading state: $e');
+        }
+      }
 
       ref.invalidate(mangaProgressProvider(widget.mangaId));
       ref.invalidate(continueReadingProvider);
@@ -513,28 +747,83 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
                       ),
                       const SizedBox(height: 12),
                       const Text(
-                        'This chapter is hosted on an external official source and cannot be rendered page-by-page inside the app.',
+                        'This chapter is hosted on an official external source and cannot be rendered inside AniSpin.',
                         style: TextStyle(color: Colors.white70, fontSize: 15),
                         textAlign: TextAlign.center,
                       ),
+                      const SizedBox(height: 32),
+                      
+                      SizedBox(
+                        width: 250,
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            final uri = Uri.parse(_externalUrl!);
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            }
+                          },
+                          icon: const Icon(Icons.open_in_browser_rounded),
+                          label: const Text('Open in Browser'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepPurple.shade900,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      SizedBox(
+                        width: 250,
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            final uri = Uri.parse(_externalUrl!);
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+                            }
+                          },
+                          icon: const Icon(Icons.chrome_reader_mode_rounded),
+                          label: const Text('Open in Custom Chrome Tabs'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepPurple.shade900,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      SizedBox(
+                        width: 250,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            await Clipboard.setData(ClipboardData(text: _externalUrl!));
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Link copied to clipboard!')),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.copy_rounded, color: Colors.purpleAccent),
+                          label: const Text('Copy Link', style: TextStyle(color: Colors.purpleAccent)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.purpleAccent, width: 1.5),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 24),
-                      ElevatedButton.icon(
+
+                      TextButton(
                         onPressed: () {
-                          Clipboard.setData(ClipboardData(text: _externalUrl!));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Link copied to clipboard! Paste it in your browser to read.'),
-                              duration: Duration(seconds: 4),
-                            ),
-                          );
+                          context.pop();
                         },
-                        icon: const Icon(Icons.copy_rounded),
-                        label: const Text('Copy Link to Read'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.purpleAccent.withAlpha(50),
-                          foregroundColor: Colors.purpleAccent,
-                          side: const BorderSide(color: Colors.purpleAccent, width: 1),
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(color: Colors.white54, fontSize: 16),
                         ),
                       ),
                     ],
@@ -667,7 +956,7 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
                               ),
                             const SizedBox(height: 4),
                             Text(
-                              'Chapter ${widget.chapterNumber}/${widget.totalChapters}',
+                              'Chapter ${widget.chapterNumber} of ${widget.totalChapters}',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: Colors.white54,
                               ),
@@ -735,31 +1024,34 @@ class _MangaReaderScreenState extends ConsumerState<MangaReaderScreen> {
 
                         NavigationControls(
                           currentChapter: widget.chapterNumber,
-                          totalChapters: widget.totalChapters,
+                          hasPrevious: _prevChapter != null,
+                          hasNext: _nextChapter != null,
                           onPrevious: () {
-                            if (widget.chapterNumber > 1) {
+                            if (_prevChapter != null) {
                               context.pushReplacement(
-                                '/manga/${widget.mangaId}/read/${widget.chapterNumber - 1}',
+                                '/manga/${widget.mangaId}/read/${_prevChapter!.number}',
                                 extra: {
                                   'romajiTitle': widget.romajiTitle,
                                   'englishTitle': widget.englishTitle,
                                   'coverImage': widget.coverImage,
                                   'bannerImage': widget.bannerImage,
                                   'totalChapters': widget.totalChapters,
+                                  'chapterId': _prevChapter!.id,
                                 },
                               );
                             }
                           },
                           onNext: () {
-                            if (widget.chapterNumber < widget.totalChapters) {
+                            if (_nextChapter != null) {
                               context.pushReplacement(
-                                '/manga/${widget.mangaId}/read/${widget.chapterNumber + 1}',
+                                '/manga/${widget.mangaId}/read/${_nextChapter!.number}',
                                 extra: {
                                   'romajiTitle': widget.romajiTitle,
                                   'englishTitle': widget.englishTitle,
                                   'coverImage': widget.coverImage,
                                   'bannerImage': widget.bannerImage,
                                   'totalChapters': widget.totalChapters,
+                                  'chapterId': _nextChapter!.id,
                                 },
                               );
                             }

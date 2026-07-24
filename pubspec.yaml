@@ -36,6 +36,12 @@ dependencies:
   # Network Images
   cached_network_image: ^3.4.1
 
+  # Web, File, and URL Utilities
+  webview_flutter: ^4.4.2
+  url_launcher: ^6.2.0
+  file_picker: ^8.0.0
+  xml: ^6.3.0
+
   # Local Database
   isar: ^3.1.0+1
   isar_flutter_libs: ^3.1.0+1

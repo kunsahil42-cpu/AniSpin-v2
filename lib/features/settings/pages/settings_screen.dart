@@ -1,18 +1,27 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:isar/isar.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../models/app_settings.dart';
 import '../providers/settings_provider.dart';
 import '../../../core/database/isar_service.dart';
+import '../../../core/config/api_config.dart';
+import '../../../core/xml/mal_xml_service.dart';
+import '../../../core/update/update_checker.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../tracker/providers/tracker_providers.dart';
 import '../../tracker/models/watch_progress.dart';
 import '../../tracker/models/reading_progress.dart';
+import '../../tracker/repository/watch_progress_repository.dart';
+import '../../tracker/repository/reading_progress_repository.dart';
 import '../../favorites/models/favorite_anime.dart';
 import '../../favorites/models/favorite_manga.dart';
 
@@ -43,6 +52,16 @@ class SettingsScreen extends ConsumerWidget {
           _buildMenuCard(
             context,
             children: [
+              _buildMenuTile(
+                context,
+                icon: Icons.account_circle_outlined,
+                title: "Account",
+                subtitle: "Manage AniList & MyAnimeList integration",
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AccountSettingsPage()),
+                ),
+              ),
               _buildMenuTile(
                 context,
                 icon: Icons.palette_outlined,
@@ -102,7 +121,6 @@ class SettingsScreen extends ConsumerWidget {
                   MaterialPageRoute(builder: (context) => const NotificationSettingsPage()),
                 ),
               ),
-
               _buildMenuTile(
                 context,
                 icon: Icons.storage_rounded,
@@ -123,6 +141,60 @@ class SettingsScreen extends ConsumerWidget {
                   MaterialPageRoute(builder: (context) => const BackupSettingsPage()),
                 ),
               ),
+              _buildMenuTile(
+                context,
+                icon: Icons.import_export_rounded,
+                title: "Import & Export",
+                subtitle: "Import/Export MAL XML backups",
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ImportExportSettingsPage()),
+                ),
+              ),
+              _buildMenuTile(
+                context,
+                icon: Icons.system_update_rounded,
+                title: "Updates",
+                subtitle: "Check for updates & current version",
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const UpdatesSettingsPage()),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Community section
+          _buildSectionHeader(context, "Community"),
+          const SizedBox(height: 8),
+          _buildMenuCard(
+            context,
+            children: [
+              _buildMenuTile(
+                context,
+                icon: Icons.telegram_rounded,
+                title: "Join Telegram Channel",
+                subtitle: "Get notifications about updates and announcements",
+                onTap: () async {
+                  final uri = Uri.parse(ApiConfig.telegramChannelUrl);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+              ),
+              _buildMenuTile(
+                context,
+                icon: Icons.forum_rounded,
+                title: "Join Reddit Community",
+                subtitle: "Connect with the community and share feedback",
+                onTap: () async {
+                  final uri = Uri.parse(ApiConfig.redditCommunityUrl);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+              ),
             ],
           ),
           const SizedBox(height: 24),
@@ -137,7 +209,7 @@ class SettingsScreen extends ConsumerWidget {
           // Footer
           Center(
             child: Text(
-              "AniVerse v1.0.0",
+              "AniSpin v2.1.0",
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                 letterSpacing: 0.8,
@@ -732,6 +804,66 @@ class MangaSettingsPage extends ConsumerWidget {
                   subtitle: const Text("Restores reading position on chapter reload"),
                   value: settings.rememberLastPage,
                   onChanged: (val) => notifier.setRememberLastPage(val),
+                ),
+                const Divider(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "External Chapters Action",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        "Action when opening an external official chapter link",
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<ExternalChapterOption>(
+                        initialValue: settings.externalChapterOption,
+                        dropdownColor: Colors.deepPurple.shade900,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.deepPurple.withValues(alpha: 0.1),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        items: ExternalChapterOption.values.map((opt) {
+                          String label = "";
+                          switch (opt) {
+                            case ExternalChapterOption.alwaysAsk:
+                              label = "Always Ask";
+                              break;
+                            case ExternalChapterOption.openInBrowser:
+                              label = "Open in Browser";
+                              break;
+                            case ExternalChapterOption.openInChromeCustomTabs:
+                              label = "Open in Chrome Custom Tabs";
+                              break;
+                            case ExternalChapterOption.copyLinkOnly:
+                              label = "Copy Link Only";
+                              break;
+                          }
+                          return DropdownMenuItem(
+                            value: opt,
+                            child: Text(label),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            notifier.updateSettings(
+                              settings.copyWith(externalChapterOption: val),
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1859,5 +1991,608 @@ class _ContentFiltersSettingsPageState extends ConsumerState<ContentFiltersSetti
         ),
       ),
     ).animate().fadeIn(duration: 250.ms, delay: (10 * (index % 10)).ms);
+  }
+}
+
+// ==========================================================================
+// ACCOUNT SETTINGS SUB-PAGE
+// ==========================================================================
+
+class AccountSettingsPage extends ConsumerWidget {
+  const AccountSettingsPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final settings = ref.watch(settingsNotifierProvider);
+    final authService = ref.read(authProvider);
+
+    final aniListConnected = settings.aniListToken != null && settings.aniListToken!.isNotEmpty;
+    final malConnected = settings.malToken != null && settings.malToken!.isNotEmpty;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Account Settings")),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        physics: const BouncingScrollPhysics(),
+        children: [
+          // AniList Section
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.star_rounded, color: Colors.blue, size: 28),
+                      const SizedBox(width: 12),
+                      Text("AniList", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          "Coming Soon",
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    "Soon AniList will be supported.",
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // MyAnimeList Section
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      if (malConnected && settings.malAvatar != null)
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundImage: NetworkImage(settings.malAvatar!),
+                        )
+                      else
+                        const Icon(Icons.stars_rounded, color: Colors.blueAccent, size: 28),
+                      const SizedBox(width: 12),
+                      Text("MyAnimeList (MAL)", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (malConnected) ...[
+                    ListTile(
+                      title: const Text("Username"),
+                      subtitle: Text(settings.malUsername ?? "Unknown"),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    ListTile(
+                      title: const Text("Connection Status"),
+                      subtitle: const Text("Connected", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    ListTile(
+                      title: const Text("Last Sync Time"),
+                      subtitle: Text(settings.malLastSync != null
+                          ? DateTime.parse(settings.malLastSync!).toLocal().toString().substring(0, 16)
+                          : "Never"),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.logout_rounded, color: Colors.red),
+                        label: const Text("Logout MyAnimeList", style: TextStyle(color: Colors.red)),
+                        onPressed: () => _confirmLogout(context, "MyAnimeList", () => authService.logoutMyAnimeList()),
+                      ),
+                    ),
+                  ] else ...[
+                    const Text("Not connected. Sign in to sync your Anime & Manga tracking lists and scores."),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.login_rounded),
+                        label: const Text("Login with MyAnimeList"),
+                        onPressed: () => authService.loginWithMyAnimeList(context),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Sync Priority Section
+          if (aniListConnected && malConnected)
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Sync Priority", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    const Text("Choose which service's data has priority when conflict is detected between AniList and MyAnimeList."),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: settings.syncPriority,
+                      decoration: const InputDecoration(labelText: "Conflict Resolution Priority"),
+                      items: const [
+                        DropdownMenuItem(value: "anilist", child: Text("AniList Priority")),
+                        DropdownMenuItem(value: "myanimelist", child: Text("MyAnimeList Priority")),
+                        DropdownMenuItem(value: "ask", child: Text("Ask Every Time")),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          ref.read(settingsNotifierProvider.notifier).updateSettings(
+                            settings.copyWith(syncPriority: val),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmLogout(BuildContext context, String platform, VoidCallback logoutAction) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Are you sure you want to logout?"),
+        content: Text("Logging out of $platform will remove the connection and disable synchronization. Your local watch history and data will NOT be deleted."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Logout"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      logoutAction();
+    }
+  }
+}
+
+// ==========================================================================
+// IMPORT & EXPORT SUB-PAGE
+// ==========================================================================
+
+class ImportExportSettingsPage extends ConsumerStatefulWidget {
+  const ImportExportSettingsPage({super.key});
+
+  @override
+  ConsumerState<ImportExportSettingsPage> createState() => _ImportExportSettingsPageState();
+}
+
+class _ImportExportSettingsPageState extends ConsumerState<ImportExportSettingsPage> {
+  final TextEditingController _xmlController = TextEditingController();
+  bool _working = false;
+
+  @override
+  void dispose() {
+    _xmlController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _importFromXmlString(String xmlContent) async {
+    if (xmlContent.trim().isEmpty) return;
+    setState(() => _working = true);
+    try {
+      final parsed = MalXmlService.parseXml(xmlContent);
+      final animeList = parsed['anime'] as List<WatchProgress>;
+      final mangaList = parsed['manga'] as List<ReadingProgress>;
+
+      final watchRepo = WatchProgressRepository();
+      final readingRepo = ReadingProgressRepository();
+
+      int importedAnime = 0;
+      int importedManga = 0;
+
+      // Save Anime
+      for (final anime in animeList) {
+        final allLocal = await watchRepo.getContinueWatching();
+        final localMatch = allLocal.where((x) => x.malId == anime.malId || x.romajiTitle == anime.romajiTitle).firstOrNull;
+
+        if (localMatch != null) {
+          localMatch.lastWatchedEpisode = max(localMatch.lastWatchedEpisode, anime.lastWatchedEpisode);
+          if (anime.score != null && anime.score! > 0) {
+            localMatch.score = anime.score;
+          }
+          if (anime.status != null) {
+            localMatch.status = anime.status;
+          }
+          if (anime.notes != null && anime.notes!.isNotEmpty) {
+            localMatch.notes = anime.notes;
+          }
+          localMatch.completedEpisodes = List<int>.generate(localMatch.lastWatchedEpisode, (i) => i + 1);
+          await watchRepo.saveProgress(localMatch);
+        } else {
+          Map<String, dynamic>? metadata;
+          try {
+            metadata = await MalXmlService.resolveAniListMetadata(anime.malId ?? 0, isManga: false);
+          } catch (_) {}
+
+          if (metadata != null) {
+            anime.animeId = metadata['id'] as int;
+            anime.romajiTitle = metadata['title']['romaji'] ?? anime.romajiTitle;
+            anime.englishTitle = metadata['title']['english'];
+            anime.coverImage = metadata['coverImage']['large'] ?? '';
+            anime.bannerImage = metadata['bannerImage'];
+            anime.totalEpisodes = metadata['episodes'];
+            anime.genres = List<String>.from(metadata['genres'] ?? []);
+            anime.studio = (metadata['studios']['nodes'] as List).isNotEmpty ? metadata['studios']['nodes'][0]['name'] : null;
+          }
+          await watchRepo.saveProgress(anime);
+        }
+        importedAnime++;
+      }
+
+      // Save Manga
+      for (final manga in mangaList) {
+        final allLocal = await readingRepo.getContinueReading();
+        final localMatch = allLocal.where((x) => x.romajiTitle == manga.romajiTitle).firstOrNull;
+
+        if (localMatch != null) {
+          localMatch.lastReadChapter = max(localMatch.lastReadChapter, manga.lastReadChapter);
+          localMatch.lastReadVolume = max(localMatch.lastReadVolume, manga.lastReadVolume);
+          if (manga.score != null && manga.score! > 0) {
+            localMatch.score = manga.score;
+          }
+          if (manga.status != null) {
+            localMatch.status = manga.status;
+          }
+          if (manga.notes != null && manga.notes!.isNotEmpty) {
+            localMatch.notes = manga.notes;
+          }
+          localMatch.completedChapters = List<int>.generate(localMatch.lastReadChapter, (i) => i + 1);
+          await readingRepo.saveProgress(localMatch);
+        } else {
+          Map<String, dynamic>? metadata;
+          try {
+            metadata = await MalXmlService.resolveAniListMetadata(manga.mangaId, isManga: true);
+          } catch (_) {}
+
+          if (metadata != null) {
+            manga.mangaId = metadata['id'] as int;
+            manga.romajiTitle = metadata['title']['romaji'] ?? manga.romajiTitle;
+            manga.englishTitle = metadata['title']['english'];
+            manga.coverImage = metadata['coverImage']['large'] ?? '';
+            manga.bannerImage = metadata['bannerImage'];
+            manga.totalChapters = metadata['chapters'];
+            manga.totalVolumes = metadata['volumes'];
+            manga.genres = List<String>.from(metadata['genres'] ?? []);
+            manga.author = (metadata['staff']['nodes'] as List).isNotEmpty ? metadata['staff']['nodes'][0]['name']['full'] : null;
+          }
+          await readingRepo.saveProgress(manga);
+        }
+        importedManga++;
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Successfully imported: $importedAnime anime and $importedManga manga entries!")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Import failed: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _pickAndImportFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['xml'],
+      );
+      if (result != null && result.files.single.path != null) {
+        final path = result.files.single.path!;
+        final file = File(path);
+        final content = await file.readAsString();
+        await _importFromXmlString(content);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to pick or parse XML: $e")),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportXmlFile() async {
+    setState(() => _working = true);
+    try {
+      final animeList = await WatchProgressRepository().getContinueWatching();
+      final mangaList = await ReadingProgressRepository().getContinueReading();
+
+      final xmlString = MalXmlService.exportToXml(
+        animeList: animeList,
+        mangaList: mangaList,
+      );
+
+      final selectedPath = await FilePicker.platform.saveFile(
+        dialogTitle: "Export MyAnimeList XML",
+        fileName: "anispin-mal.xml",
+        type: FileType.any,
+      );
+
+      if (selectedPath != null) {
+        final file = File(selectedPath);
+        await file.writeAsString(xmlString);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("MAL XML exported successfully to: $selectedPath")),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Export failed: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text("Import & Export")),
+      body: _working
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16.0),
+              physics: const BouncingScrollPhysics(),
+              children: [
+                // Import Card
+                Card(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Import MAL XML", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        const Text("Import exported XML files from other anime/manga applications (supported: myanimelist.xml, anispin-mal.xml)."),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                icon: const Icon(Icons.file_open_rounded),
+                                label: const Text("Select XML File"),
+                                onPressed: _pickAndImportFile,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        const Divider(),
+                        const SizedBox(height: 12),
+                        Text("Or Paste XML Content Manually", style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _xmlController,
+                          maxLines: 8,
+                          style: const TextStyle(fontFamily: "monospace", fontSize: 11),
+                          decoration: const InputDecoration(
+                            hintText: "Paste XML contents here...",
+                            alignLabelWithHint: true,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.input_rounded),
+                            label: const Text("Import Pasted Content"),
+                            onPressed: () => _importFromXmlString(_xmlController.text),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Export Card
+                Card(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Export MAL XML", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        const Text("Generate and export your local tracking list to MAL XML format."),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            icon: const Icon(Icons.ios_share_rounded),
+                            label: const Text("Export to File"),
+                            onPressed: _exportXmlFile,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+// ==========================================================================
+// UPDATES SUB-PAGE
+// ==========================================================================
+
+class UpdatesSettingsPage extends ConsumerStatefulWidget {
+  const UpdatesSettingsPage({super.key});
+
+  @override
+  ConsumerState<UpdatesSettingsPage> createState() => _UpdatesSettingsPageState();
+}
+
+class _UpdatesSettingsPageState extends ConsumerState<UpdatesSettingsPage> {
+  bool _checking = false;
+
+  Future<void> _check() async {
+    setState(() => _checking = true);
+    final info = await UpdateChecker.checkForUpdates();
+    if (mounted) {
+      setState(() {
+        _checking = false;
+      });
+      _showResultDialog(info);
+    }
+  }
+
+  void _showResultDialog(AppUpdateInfo info) {
+    if (!info.isUpdateAvailable) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("App Up to Date"),
+          content: Text("You're using the latest version of AniSpin.\n\nCurrent Version: ${UpdateChecker.currentVersion}"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("OK"),
+            ),
+          ],
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Update Available!"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("AniSpin ${info.latestVersion} is available."),
+              const SizedBox(height: 16),
+              Text("Current Version: ${UpdateChecker.currentVersion}"),
+              Text("Latest Version: ${info.latestVersion}"),
+              Text("APK Size: ${info.apkSize}"),
+              Text("Release Date: ${info.releaseDate}"),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Later"),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                final uri = Uri.parse(info.downloadUrl);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+              child: const Text("Update Now"),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text("Updates")),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        physics: const BouncingScrollPhysics(),
+        children: [
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                children: [
+                  const Icon(Icons.system_update_rounded, size: 64, color: Colors.purple),
+                  const SizedBox(height: 16),
+                  Text("Current Version", style: theme.textTheme.bodyMedium),
+                  Text(
+                    UpdateChecker.currentVersion,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  if (_checking)
+                    const CircularProgressIndicator()
+                  else
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.search_rounded),
+                        label: const Text("Check for Updates"),
+                        onPressed: _check,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

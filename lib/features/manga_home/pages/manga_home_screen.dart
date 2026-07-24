@@ -9,6 +9,9 @@ import '../../tracker/providers/tracker_providers.dart';
 import '../providers/manga_home_provider.dart';
 import '../repository/manga_home_repository.dart';
 import '../models/manga_home_model.dart';
+import 'package:isar/isar.dart';
+import '../../../core/database/isar_service.dart';
+import '../../manga_reader/models/chapter_reading_state.dart';
 
 class MangaHomeScreen extends ConsumerWidget {
   final bool embed;
@@ -60,17 +63,30 @@ class MangaHomeScreen extends ConsumerWidget {
                         coverImage: progress.coverImage,
                         chapter: progress.lastReadChapter,
                         percentage: progress.readingPercentage,
-                        onTap: () {
-                          context.push(
-                            '/manga/${progress.mangaId}/read/${progress.lastReadChapter}',
-                            extra: {
-                              'romajiTitle': progress.romajiTitle,
-                              'englishTitle': progress.englishTitle,
-                              'coverImage': progress.coverImage,
-                              'bannerImage': progress.bannerImage,
-                              'totalChapters': progress.totalChapters ?? 100,
-                            },
-                          );
+                        onTap: () async {
+                          String? lastReadChapterId;
+                          try {
+                            final savedState = await IsarService.instance.chapterReadingStates
+                                .filter()
+                                .mangaIdEqualTo(progress.mangaId)
+                                .chapterNumberEqualTo(progress.lastReadChapter)
+                                .findFirst();
+                            lastReadChapterId = savedState?.chapterId;
+                          } catch (_) {}
+
+                          if (context.mounted) {
+                            context.push(
+                              '/manga/${progress.mangaId}/read/${progress.lastReadChapter}',
+                              extra: {
+                                'romajiTitle': progress.romajiTitle,
+                                'englishTitle': progress.englishTitle,
+                                'coverImage': progress.coverImage,
+                                'bannerImage': progress.bannerImage,
+                                'totalChapters': (progress.totalChapters != null && progress.totalChapters! > 0) ? progress.totalChapters! : 100,
+                                'chapterId': lastReadChapterId,
+                              },
+                            );
+                          }
                         },
                       );
                     },
@@ -239,7 +255,7 @@ class _MangaSectionList extends ConsumerWidget {
               final manga = mangaList[index];
               return _MangaCard(
                 manga: manga,
-                onTap: () => context.push('/manga/${manga.id}'),
+                onTap: () => context.push('/manga/${manga.id}?title=${Uri.encodeComponent(manga.title)}'),
               );
             },
           );
@@ -376,14 +392,14 @@ class _ContinueReadingCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     LinearProgressIndicator(
-                      value: percentage,
+                      value: (percentage.isNaN || percentage.isInfinite) ? 0.0 : percentage,
                       backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
                       valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
                       minHeight: 4,
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${(percentage * 100).toInt()}% completed',
+                      '${((percentage.isNaN || percentage.isInfinite) ? 0.0 : percentage * 100).toInt()}% completed',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       ),

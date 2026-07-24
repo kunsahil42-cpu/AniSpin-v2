@@ -7,11 +7,11 @@ import '../../settings/providers/settings_provider.dart';
 import '../../../core/utils/genre_filter.dart';
 
 final watchProgressRepositoryProvider = Provider<WatchProgressRepository>((ref) {
-  return WatchProgressRepository();
+  return WatchProgressRepository(ref);
 });
 
 final readingProgressRepositoryProvider = Provider<ReadingProgressRepository>((ref) {
-  return ReadingProgressRepository();
+  return ReadingProgressRepository(ref);
 });
 
 final continueWatchingProvider = StreamProvider<List<WatchProgress>>((ref) {

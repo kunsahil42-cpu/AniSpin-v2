@@ -30,21 +30,20 @@ import '../../../features/anime_details/models/stream_source_model.dart';
 class AnikotoApi {
   AnikotoApi([http.Client? client]) : _client = client ?? http.Client();
 
-  static const String _base = 'https://megaplay.buzz';
+  static const List<String> _bases = [
+    'https://animeplay.cfd',
+    'https://megaplay.buzz',
+  ];
   static const Duration _timeout = Duration(seconds: 12);
   static const int _maxAttempts = 2;
   static const Duration _backoffUnit = Duration(milliseconds: 500);
 
   final http.Client _client;
 
-  /// Headers every request (and later the video player) must send. megaplay's
-  /// CDN rejects segment requests that arrive without a matching `Referer`.
-  static const Map<String, String> _headers = {
-    'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-            '(KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-    'Referer': '$_base/',
-  };
+  /// User-Agent we use to mimic modern browser requests.
+  static const String _userAgent =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
   /// Resolves a playable stream for a single episode.
   ///
@@ -57,26 +56,39 @@ class AnikotoApi {
     required bool dub,
   }) async {
     final type = dub ? 'dub' : 'sub';
-    final embedUrl = '$_base/stream/mal/$malId/$episode/$type';
+    AppFailure lastFailure = AppFailure.notFound('This episode is not available yet.');
 
-    final html = await _get(embedUrl);
-    final dataId = _extractDataId(html);
-    if (dataId == null) {
-      _log('no data-id in embed page for mal/$malId/$episode/$type');
-      throw AppFailure.notFound('This episode is not available yet.');
+    for (final base in _bases) {
+      try {
+        final embedUrl = '$base/stream/mal/$malId/$episode/$type';
+        final html = await _get(embedUrl, base: base);
+        final dataId = _extractDataId(html);
+        if (dataId == null) {
+          _log('no data-id in embed page for mal/$malId/$episode/$type using $base');
+          continue;
+        }
+
+        final sourcesJson = await _get(
+          '$base/stream/getSources?id=$dataId',
+          base: base,
+          xhr: true,
+        );
+        return _parseSources(sourcesJson, base: base);
+      } on AppFailure catch (e) {
+        lastFailure = e;
+      } catch (e) {
+        lastFailure = AppFailure.from(e);
+      }
     }
 
-    final sourcesJson = await _get(
-      '$_base/stream/getSources?id=$dataId',
-      xhr: true,
-    );
-    return _parseSources(sourcesJson);
+    throw lastFailure;
   }
 
   /// GETs [url] with retry/backoff on transient failures. Returns the body.
-  Future<String> _get(String url, {bool xhr = false}) async {
+  Future<String> _get(String url, {required String base, bool xhr = false}) async {
     final headers = {
-      ..._headers,
+      'User-Agent': _userAgent,
+      'Referer': '$base/',
       if (xhr) 'X-Requested-With': 'XMLHttpRequest',
     };
 
@@ -125,11 +137,7 @@ class AnikotoApi {
   }
 
   /// Parses the getSources JSON into a [StreamSource].
-  ///
-  /// megaplay is inconsistent about `sources`: sometimes an object `{file: ...}`,
-  /// sometimes a list `[{file: ...}]`. `tracks` is a list of subtitle/thumbnail
-  /// entries; we keep only real caption tracks with a URL.
-  static StreamSource _parseSources(String body) {
+  static StreamSource _parseSources(String body, {required String base}) {
     final Map<String, dynamic> json;
     try {
       json = jsonDecode(body) as Map<String, dynamic>;
@@ -148,7 +156,6 @@ class AnikotoApi {
       for (final t in rawTracks) {
         if (t is! Map) continue;
         final kind = (t['kind'] ?? '').toString().toLowerCase();
-        // Skip thumbnail/preview tracks — captions/subtitles only.
         if (kind.isNotEmpty && kind != 'captions' && kind != 'subtitles') {
           continue;
         }
@@ -159,7 +166,12 @@ class AnikotoApi {
       }
     }
 
-    return StreamSource(url: url, headers: _headers, subtitles: tracks);
+    final headers = {
+      'User-Agent': _userAgent,
+      'Referer': '$base/',
+    };
+
+    return StreamSource(url: url, headers: headers, subtitles: tracks);
   }
 
   /// Extracts the first `file` URL from either an object or a list of sources.

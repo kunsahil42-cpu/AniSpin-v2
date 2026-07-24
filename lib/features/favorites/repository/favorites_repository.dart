@@ -12,16 +12,23 @@ class FavoritesRepository {
   // =========================
 
   Future<void> addFavorite(
-    FavoriteAnime anime,
-  ) async {
+    FavoriteAnime anime, {
+    dynamic syncService,
+  }) async {
     await _isar.writeTxn(() async {
       await _isar.favoriteAnimes.put(anime);
     });
+    if (syncService != null) {
+      try {
+        syncService.syncFavorite(anime.animeId, false);
+      } catch (_) {}
+    }
   }
 
   Future<void> removeFavorite(
-    int animeId,
-  ) async {
+    int animeId, {
+    dynamic syncService,
+  }) async {
     final favorite = await _isar.favoriteAnimes
         .filter()
         .animeIdEqualTo(animeId)
@@ -34,6 +41,11 @@ class FavoritesRepository {
         favorite.id,
       );
     });
+    if (syncService != null) {
+      try {
+        syncService.syncFavorite(animeId, false);
+      } catch (_) {}
+    }
   }
 
   Future<bool> isFavorite(
@@ -55,8 +67,9 @@ class FavoritesRepository {
   }
 
   Future<void> toggleFavorite(
-    FavoriteAnime anime,
-  ) async {
+    FavoriteAnime anime, {
+    dynamic syncService,
+  }) async {
     final exists = await isFavorite(
       anime.animeId,
     );
@@ -64,10 +77,12 @@ class FavoritesRepository {
     if (exists) {
       await removeFavorite(
         anime.animeId,
+        syncService: syncService,
       );
     } else {
       await addFavorite(
         anime,
+        syncService: syncService,
       );
     }
   }
@@ -85,16 +100,23 @@ class FavoritesRepository {
   // =========================
 
   Future<void> addMangaFavorite(
-    FavoriteManga manga,
-  ) async {
+    FavoriteManga manga, {
+    dynamic syncService,
+  }) async {
     await _isar.writeTxn(() async {
       await _isar.favoriteMangas.put(manga);
     });
+    if (syncService != null) {
+      try {
+        syncService.syncFavorite(manga.mangaId, true);
+      } catch (_) {}
+    }
   }
 
   Future<void> removeMangaFavorite(
-    int mangaId,
-  ) async {
+    int mangaId, {
+    dynamic syncService,
+  }) async {
     final favorite = await _isar.favoriteMangas
         .filter()
         .mangaIdEqualTo(mangaId)
@@ -107,6 +129,11 @@ class FavoritesRepository {
         favorite.id,
       );
     });
+    if (syncService != null) {
+      try {
+        syncService.syncFavorite(mangaId, true);
+      } catch (_) {}
+    }
   }
 
   Future<bool> isMangaFavorite(
@@ -128,8 +155,9 @@ class FavoritesRepository {
   }
 
   Future<void> toggleMangaFavorite(
-    FavoriteManga manga,
-  ) async {
+    FavoriteManga manga, {
+    dynamic syncService,
+  }) async {
     final exists = await isMangaFavorite(
       manga.mangaId,
     );
@@ -137,10 +165,12 @@ class FavoritesRepository {
     if (exists) {
       await removeMangaFavorite(
         manga.mangaId,
+        syncService: syncService,
       );
     } else {
       await addMangaFavorite(
         manga,
+        syncService: syncService,
       );
     }
   }

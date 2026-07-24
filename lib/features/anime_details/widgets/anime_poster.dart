@@ -11,9 +11,10 @@ class AnimePoster extends StatelessWidget {
     super.key,
     required this.imageUrl,
   });
-
   @override
   Widget build(BuildContext context) {
+    final hasImage = imageUrl.trim().isNotEmpty && imageUrl != "null";
+
     return SizedBox(
       width: _posterWidth,
       child: Material(
@@ -24,32 +25,43 @@ class AnimePoster extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: AspectRatio(
           aspectRatio: 2 / 3,
-          child: CachedNetworkImage(
-            imageUrl: imageUrl,
-            fit: BoxFit.cover,
-            filterQuality: FilterQuality.medium,
-            fadeInDuration: const Duration(milliseconds: 250),
-            fadeOutDuration: Duration.zero,
-            placeholder: (context, url) => Container(
-              color: Colors.grey.shade900,
-              child: const Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Color(0xFF7C4DFF),
+          child: hasImage
+              ? CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.medium,
+                  fadeInDuration: const Duration(milliseconds: 250),
+                  fadeOutDuration: Duration.zero,
+                  placeholder: (context, url) => Container(
+                    color: Colors.grey.shade900,
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF7C4DFF),
+                      ),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    color: Colors.grey.shade900,
+                    child: const Center(
+                      child: Icon(
+                        Icons.broken_image_rounded,
+                        color: Colors.white38,
+                        size: 48,
+                      ),
+                    ),
+                  ),
+                )
+              : Container(
+                  color: Colors.grey.shade900,
+                  child: const Center(
+                    child: Icon(
+                      Icons.broken_image_rounded,
+                      color: Colors.white38,
+                      size: 48,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            errorWidget: (context, url, error) => Container(
-              color: Colors.grey.shade900,
-              child: const Center(
-                child: Icon(
-                  Icons.broken_image_rounded,
-                  color: Colors.white38,
-                  size: 48,
-                ),
-              ),
-            ),
-          ),
         ),
       ),
     );

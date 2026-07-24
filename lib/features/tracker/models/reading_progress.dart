@@ -36,4 +36,13 @@ class ReadingProgress {
   int? totalVolumes;
   List<String> genres = [];
   String? author;
+
+  // New metadata fields for offline support & multi-source details fetching
+  String? sourceName;
+  String? mangaDexId;
+  int? aniListId;
+  int? malId;
+  String? description;
+  String? sourceType;
+  DateTime? lastSyncedAt;
 }

@@ -24,7 +24,7 @@ class FavoriteCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () {
-          context.push('/anime/${anime.animeId}');
+          context.push('/anime/${anime.animeId}?title=${Uri.encodeComponent(anime.romajiTitle)}');
         },
         child: Padding(
           padding: const EdgeInsets.all(12),

@@ -15,6 +15,12 @@ class MangaTrackingSection extends ConsumerStatefulWidget {
   final int? totalVolumes;
   final List<String>? genres;
   final String? author;
+  final String? mangaDexId;
+  final int? aniListId;
+  final int? malId;
+  final String? description;
+  final String? sourceName;
+  final String? sourceType;
 
   const MangaTrackingSection({
     super.key,
@@ -27,6 +33,12 @@ class MangaTrackingSection extends ConsumerStatefulWidget {
     this.totalVolumes,
     this.genres,
     this.author,
+    this.mangaDexId,
+    this.aniListId,
+    this.malId,
+    this.description,
+    this.sourceName,
+    this.sourceType,
   });
 
   @override
@@ -107,7 +119,14 @@ class _MangaTrackingSectionState extends ConsumerState<MangaTrackingSection> {
       ..status = 'Reading'
       ..lastReadVolume = 0
       ..genres = widget.genres ?? []
-      ..author = widget.author;
+      ..author = widget.author
+      ..mangaDexId = widget.mangaDexId
+      ..aniListId = widget.aniListId
+      ..malId = widget.malId
+      ..description = widget.description
+      ..sourceName = widget.sourceName
+      ..sourceType = widget.sourceType
+      ..lastSyncedAt = DateTime.now();
 
     await repo.saveProgress(progress);
     ref.invalidate(mangaProgressProvider(widget.mangaId));
@@ -300,7 +319,7 @@ class _MangaTrackingSectionState extends ConsumerState<MangaTrackingSection> {
                   children: [
                     Expanded(
                       child: Text(
-                        'Chapter $_chapter / ${widget.totalChapters ?? "?"}',
+                        'Chapter $_chapter of ${widget.totalChapters ?? "?"}',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),

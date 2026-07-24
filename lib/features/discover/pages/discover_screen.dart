@@ -117,7 +117,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                 AnimeOfDayCard(
                   anime: animeData,
                   onTap: () {
-                    context.push('/anime/${animeData.id}');
+                    context.push('/anime/${animeData.id}?title=${Uri.encodeComponent(animeData.title)}');
                   },
                 ),
               ],
@@ -443,9 +443,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     return InkWell(
       onTap: () {
         if (media.episodes != null) {
-          context.push('/anime/${media.id}');
+          context.push('/anime/${media.id}?title=${Uri.encodeComponent(media.title)}');
         } else {
-          context.push('/manga/${media.id}');
+          context.push('/manga/${media.id}?title=${Uri.encodeComponent(media.title)}');
         }
       },
       borderRadius: BorderRadius.circular(16),

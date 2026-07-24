@@ -144,7 +144,7 @@ class _DiscoverResultsScreenState extends ConsumerState<DiscoverResultsScreen> {
               return MangaGridTile(
                 manga: item,
                 onTap: () {
-                  context.push('/manga/${item.id}');
+                  context.push('/manga/${item.id}?title=${Uri.encodeComponent(item.title)}');
                 },
               );
             },
@@ -189,7 +189,7 @@ class _DiscoverResultsScreenState extends ConsumerState<DiscoverResultsScreen> {
               return AnimeGridTile(
                 anime: item,
                 onTap: () {
-                  context.push('/anime/${item.id}');
+                  context.push('/anime/${item.id}?title=${Uri.encodeComponent(item.title)}');
                 },
               );
             },

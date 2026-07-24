@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 
 class NavigationControls extends StatelessWidget {
-  final int currentChapter;
-  final int totalChapters;
+  final String currentChapter;
+  final bool hasPrevious;
+  final bool hasNext;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
 
   const NavigationControls({
     super.key,
     required this.currentChapter,
-    required this.totalChapters,
+    required this.hasPrevious,
+    required this.hasNext,
     required this.onPrevious,
     required this.onNext,
   });
@@ -21,7 +23,7 @@ class NavigationControls extends StatelessWidget {
       children: [
         IconButton(
           icon: const Icon(Icons.chevron_left, color: Colors.white),
-          onPressed: currentChapter > 1 ? onPrevious : null,
+          onPressed: hasPrevious ? onPrevious : null,
           tooltip: 'Previous Chapter',
         ),
         Text(
@@ -34,7 +36,7 @@ class NavigationControls extends StatelessWidget {
         ),
         IconButton(
           icon: const Icon(Icons.chevron_right, color: Colors.white),
-          onPressed: currentChapter < totalChapters ? onNext : null,
+          onPressed: hasNext ? onNext : null,
           tooltip: 'Next Chapter',
         ),
       ],

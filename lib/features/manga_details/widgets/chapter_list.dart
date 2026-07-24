@@ -6,9 +6,6 @@ import '../../tracker/providers/tracker_providers.dart';
 import '../models/chapter_model.dart';
 import '../providers/manga_details_provider.dart';
 
-/// Number of chapters per collapsible range (1–50, 51–100, …).
-const int _kGroupSize = 50;
-
 class ChapterList extends ConsumerStatefulWidget {
   final int mangaId;
   final int totalChapters;
@@ -32,13 +29,17 @@ class ChapterList extends ConsumerStatefulWidget {
 }
 
 class _ChapterListState extends ConsumerState<ChapterList> {
-  bool _ascending = false; // Default: show newest first
+  String? _selectedLanguage;
+  String _selectedType = 'All';
+  String _selectedSort = 'Chapter';
+  String _searchQuery = '';
+  final _searchController = TextEditingController();
 
-  // Accordion state: the block index (0 => 1–50, 1 => 51–100, …) that is
-  // currently expanded. Only one group is open at a time so we never build
-  // more than a single range of rows, no matter how many chapters exist.
-  int? _expandedBlock;
-  bool _userInteracted = false;
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,36 +50,113 @@ class _ChapterListState extends ConsumerState<ChapterList> {
 
     return chaptersAsync.when(
       loading: () => const _SkeletonChapters(),
-      error: (err, stack) => const Padding(
-        padding: EdgeInsets.all(16.0),
+      error: (err, stack) => Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Center(
           child: Text(
             'Failed to load chapters. Please try again.',
-            style: TextStyle(color: Colors.white70),
+            style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
           ),
         ),
       ),
       data: (chapters) {
         if (chapters.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(16.0),
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
             child: Center(
               child: Text(
-                'No English chapters available.',
-                style: TextStyle(color: Colors.white70),
+                'No chapters available.',
+                style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
               ),
             ),
           );
         }
 
-        // Build groups of 50 from a numerically-sorted copy so ranges are
-        // always correct (never lexicographic: 2 before 10, 49 before 50…).
-        final groups = _buildGroups(chapters, ascending: _ascending);
+        // Dynamically get available languages
+        final languages = chapters.map((c) => c.language).toSet().toList();
+        languages.sort((a, b) {
+          if (a.toUpperCase() == 'EN') return -1;
+          if (b.toUpperCase() == 'EN') return 1;
+          return a.compareTo(b);
+        });
 
-        // The effective open group: before the user touches anything, the
-        // first visible group is expanded. After that, honour their choice.
-        final effectiveExpanded =
-            _userInteracted ? _expandedBlock : groups.first.block;
+        if (_selectedLanguage == null && languages.isNotEmpty) {
+          _selectedLanguage = languages.first;
+        }
+
+        // Filter by language
+        var filtered = chapters.where((c) => c.language == _selectedLanguage).toList();
+
+        // Filter by Type
+        if (_selectedType == 'Official') {
+          filtered = filtered.where((c) => c.scanGroup == 'Official').toList();
+        } else if (_selectedType == 'Unofficial') {
+          filtered = filtered.where((c) => c.scanGroup == 'Unofficial').toList();
+        }
+
+        // Filter by Search Query
+        if (_searchQuery.trim().isNotEmpty) {
+          final query = _searchQuery.toLowerCase().trim();
+          filtered = filtered.where((c) {
+            final numMatch = c.number.toLowerCase().contains(query);
+            final titleMatch = c.title.toLowerCase().contains(query);
+            return numMatch || titleMatch;
+          }).toList();
+        }
+
+        // Sort
+        if (_selectedSort == 'Chapter') {
+          filtered.sort((a, b) {
+            final numA = double.tryParse(a.number) ?? 0.0;
+            final numB = double.tryParse(b.number) ?? 0.0;
+            return numB.compareTo(numA); // Newest / largest chapter first
+          });
+        } else if (_selectedSort == 'Date') {
+          filtered.sort((a, b) {
+            final timeA = a.createdAt ?? 0;
+            final timeB = b.createdAt ?? 0;
+            return timeB.compareTo(timeA); // Newest upload date first
+          });
+        }
+
+        final maxChNum = chapters.isNotEmpty
+            ? chapters.map((c) => double.tryParse(c.number) ?? 0.0).reduce((a, b) => a > b ? a : b).toInt()
+            : 0;
+        final actualTotalChapters = widget.totalChapters > maxChNum
+            ? widget.totalChapters
+            : maxChNum;
+
+        const languageNames = {
+          'EN': 'English',
+          'JA': 'Japanese',
+          'ES': 'Spanish',
+          'ID': 'Indonesian',
+          'RU': 'Russian',
+          'PT': 'Portuguese',
+          'FR': 'French',
+          'KO': 'Korean',
+          'ZH': 'Chinese',
+          'DE': 'German',
+          'IT': 'Italian',
+          'AR': 'Arabic',
+          'HI': 'Hindi',
+        };
+
+        const languageFlags = {
+          'EN': '🇬🇧',
+          'JA': '🇯🇵',
+          'ES': '🇪🇸',
+          'ID': '🇮🇩',
+          'RU': '🇷🇺',
+          'PT': '🇵🇹',
+          'FR': '🇫🇷',
+          'KO': '🇰🇷',
+          'ZH': '🇨🇳',
+          'DE': '🇩🇪',
+          'IT': '🇮🇹',
+          'AR': '🇸🇦',
+          'HI': '🇮🇳',
+        };
 
         return progressAsync.when(
           loading: () => const Center(
@@ -92,109 +170,205 @@ class _ChapterListState extends ConsumerState<ChapterList> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (newChapters.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                // 1. Search Bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (val) {
+                      setState(() {
+                        _searchQuery = val;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search chapter number...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: theme.colorScheme.primary.withValues(alpha: 0.2),
-                        ),
+                        borderSide: BorderSide(color: theme.colorScheme.outline.withValues(alpha: 0.2)),
                       ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.new_releases_rounded,
-                              color: theme.colorScheme.primary, size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'New Chapters Available! (Chapter ${newChapters.join(", ")})',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.close, size: 18, color: theme.colorScheme.primary),
-                            onPressed: () {
-                              ref.read(newChaptersProvider(widget.mangaId).notifier).state = {};
-                            },
-                            style: IconButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          ),
-                        ],
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: theme.colorScheme.outline.withValues(alpha: 0.2)),
                       ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                      fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
+                      filled: true,
                     ),
                   ),
+                ),
+
+                // 2. Dropdowns (LANG & TYPE)
                 Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        '📚 Chapters',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
+                      // LANG Dropdown
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'LANG',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.1)),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _selectedLanguage,
+                                  isExpanded: true,
+                                  dropdownColor: Colors.grey[950],
+                                  icon: const Icon(Icons.keyboard_arrow_down),
+                                  onChanged: (lang) {
+                                    setState(() {
+                                      _selectedLanguage = lang;
+                                    });
+                                  },
+                                  items: languages.map((lang) {
+                                    final flag = languageFlags[lang.toUpperCase()] ?? '🌐';
+                                    final name = languageNames[lang.toUpperCase()] ?? lang;
+                                    return DropdownMenuItem<String>(
+                                      value: lang,
+                                      child: Text(
+                                        '$flag  $name',
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      Row(
-                        children: [
-                          Text(
-                            '${chapters.length} Chapters',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface
-                                  .withValues(alpha: 0.6),
+                      const SizedBox(width: 14),
+                      // TYPE Dropdown
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'TYPE',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            tooltip: _ascending
-                                ? 'Sorted oldest first'
-                                : 'Sorted newest first',
-                            icon: Icon(
-                              _ascending
-                                  ? Icons.arrow_upward_rounded
-                                  : Icons.arrow_downward_rounded,
-                              size: 20,
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.1)),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _selectedType,
+                                  isExpanded: true,
+                                  dropdownColor: Colors.grey[950],
+                                  icon: const Icon(Icons.keyboard_arrow_down),
+                                  onChanged: (type) {
+                                    setState(() {
+                                      _selectedType = type!;
+                                    });
+                                  },
+                                  items: ['All', 'Official', 'Unofficial'].map((type) {
+                                    return DropdownMenuItem<String>(
+                                      value: type,
+                                      child: Text(
+                                        type,
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
                             ),
-                            onPressed: () {
-                              setState(() {
-                                _ascending = !_ascending;
-                              });
-                            },
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
+
+                // 3. SORT options
                 Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      Text(
+                        'SORT:',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Chapter Sort Button
+                      _SortButton(
+                        label: 'Chapter ↓',
+                        selected: _selectedSort == 'Chapter',
+                        onTap: () {
+                          setState(() {
+                            _selectedSort = 'Chapter';
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 10),
+                      // Date Sort Button
+                      _SortButton(
+                        label: 'Date',
+                        selected: _selectedSort == 'Date',
+                        onTap: () {
+                          setState(() {
+                            _selectedSort = 'Date';
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Divider(height: 24, thickness: 1),
+
+                // 4. Flat chapters list
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
                     children: [
-                      for (final group in groups)
+                      if (filtered.isEmpty)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _ChapterGroupTile(
-                            group: group,
-                            expanded: group.block == effectiveExpanded,
-                            ascending: _ascending,
-                            currentChapter: currentChapter,
-                            completed: completed,
-                            newChapters: newChapters,
-                            onToggle: () => _toggle(group.block),
-                            onOpenChapter: _openChapter,
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Center(
+                            child: Text(
+                              'No chapters found matching current filters.',
+                              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                            ),
                           ),
-                        ),
+                        )
+                      else
+                        for (final chapter in filtered)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _ChapterRow(
+                              chapter: chapter,
+                              isCurrent: (double.tryParse(chapter.number)?.toInt() ?? 0) == currentChapter,
+                              isRead: completed.contains(double.tryParse(chapter.number)?.toInt() ?? 0),
+                              isNew: newChapters.contains(chapter.number),
+                              onTap: () => _openChapter(chapter, actualTotalChapters),
+                            ),
+                          ),
                     ],
                   ),
                 ),
@@ -206,17 +380,7 @@ class _ChapterListState extends ConsumerState<ChapterList> {
     );
   }
 
-  void _toggle(int block) {
-    setState(() {
-      // Resolve the currently-open block first so the very first tap behaves
-      // consistently with the "first group open by default" rule.
-      final current = _userInteracted ? _expandedBlock : block;
-      _userInteracted = true;
-      _expandedBlock = current == block ? null : block;
-    });
-  }
-
-  void _openChapter(ChapterModel chapter) {
+  void _openChapter(ChapterModel chapter, int total) {
     context.push(
       '/manga/${widget.mangaId}/read/${chapter.number}',
       extra: {
@@ -224,244 +388,48 @@ class _ChapterListState extends ConsumerState<ChapterList> {
         'englishTitle': widget.englishTitle,
         'coverImage': widget.coverImage,
         'bannerImage': widget.bannerImage,
-        'totalChapters': widget.totalChapters,
+        'totalChapters': total,
+        'chapterId': chapter.id,
       },
     );
   }
-
-  /// Groups chapters into blocks of [_kGroupSize], ordered for display.
-  ///
-  /// Grouping is driven purely by chapter number, so a chapter's block is
-  /// stable regardless of the sort direction; only the order in which groups
-  /// and their rows are presented flips with [ascending].
-  static List<_ChapterGroup> _buildGroups(
-    List<ChapterModel> chapters, {
-    required bool ascending,
-  }) {
-    final byBlock = <int, List<ChapterModel>>{};
-    for (final c in chapters) {
-      // (n - 1) ~/ 50 => 1..50 -> block 0, 51..100 -> block 1, …
-      final block = ((c.number - 1) ~/ _kGroupSize).clamp(0, 1 << 30);
-      (byBlock[block] ??= <ChapterModel>[]).add(c);
-    }
-
-    final blocks = byBlock.keys.toList()..sort();
-    if (!ascending) {
-      final reversed = blocks.reversed.toList();
-      blocks
-        ..clear()
-        ..addAll(reversed);
-    }
-
-    return [
-      for (final block in blocks)
-        _ChapterGroup(
-          block: block,
-          chapters: _sortWithin(byBlock[block]!, ascending: ascending),
-        ),
-    ];
-  }
-
-  static List<ChapterModel> _sortWithin(
-    List<ChapterModel> chapters, {
-    required bool ascending,
-  }) {
-    final sorted = List<ChapterModel>.from(chapters);
-    sorted.sort((a, b) =>
-        ascending ? a.number.compareTo(b.number) : b.number.compareTo(a.number));
-    return sorted;
-  }
 }
 
-/// A single range of chapters (e.g. 51–100) plus its rows.
-class _ChapterGroup {
-  final int block;
-  final List<ChapterModel> chapters;
+class _SortButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
 
-  const _ChapterGroup({required this.block, required this.chapters});
-
-  /// Lowest chapter number in the group (labels the start of the range).
-  int get start =>
-      chapters.map((c) => c.number).reduce((a, b) => a < b ? a : b);
-
-  /// Highest chapter number in the group (labels the end of the range).
-  int get end => chapters.map((c) => c.number).reduce((a, b) => a > b ? a : b);
-
-  String get label => start == end ? 'Chapter $start' : 'Chapters $start–$end';
-}
-
-/// Aurora-styled expandable range header + lazily-built rows.
-///
-/// The chapter rows are only created while [expanded] is true, so collapsed
-/// groups cost a single header widget each — the list stays smooth even with
-/// thousands of chapters.
-class _ChapterGroupTile extends StatelessWidget {
-  final _ChapterGroup group;
-  final bool expanded;
-  final bool ascending;
-  final int currentChapter;
-  final List<int> completed;
-  final Set<int> newChapters;
-  final VoidCallback onToggle;
-  final void Function(ChapterModel) onOpenChapter;
-
-  const _ChapterGroupTile({
-    required this.group,
-    required this.expanded,
-    required this.ascending,
-    required this.currentChapter,
-    required this.completed,
-    required this.newChapters,
-    required this.onToggle,
-    required this.onOpenChapter,
+  const _SortButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
-
-    final containsCurrent =
-        currentChapter >= group.start && currentChapter <= group.end;
-
-    final hasEnglish = group.chapters.any((c) => c.language == 'EN');
-    final nonEnglishCount = group.chapters.where((c) => c.language != 'EN').length;
-
-    return Card(
-      elevation: expanded ? 3 : 0,
-      color: expanded
-          ? theme.colorScheme.primary.withValues(alpha: 0.06)
-          : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-          color: expanded
-              ? primaryColor.withValues(alpha: 0.6)
-              : theme.colorScheme.outline.withValues(alpha: 0.08),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? Colors.transparent : theme.colorScheme.outline.withValues(alpha: 0.1),
+          ),
         ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          // ── Range header ──────────────────────────────────────────────
-          InkWell(
-            onTap: onToggle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  AnimatedRotation(
-                    turns: expanded ? 0.5 : 0.0,
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeInOut,
-                    child: Icon(
-                      Icons.expand_more_rounded,
-                      color: expanded ? primaryColor : null,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                group.label,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: expanded ? primaryColor : null,
-                                ),
-                              ),
-                            ),
-                            if (containsCurrent) ...[
-                              Icon(Icons.bookmark_rounded,
-                                  size: 16, color: primaryColor),
-                              const SizedBox(width: 6),
-                            ],
-                            Text(
-                              '${group.chapters.length} Chapters',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            if (hasEnglish) ...[
-                              const Text(
-                                '🟢 English Available',
-                                style: TextStyle(
-                                  color: Color(0xFF4CAF50),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (nonEnglishCount > 0) ...[
-                                Text(
-                                  '•  🟠 $nonEnglishCount Non-English',
-                                  style: const TextStyle(
-                                    color: Color(0xFFFF9800),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ] else ...[
-                              const Text(
-                                '🟠 Non-English Only',
-                                style: TextStyle(
-                                  color: Color(0xFFFF9800),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+        child: Text(
+          label,
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: selected ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
           ),
-          // ── Lazily-built rows with a smooth expand/collapse ───────────
-          AnimatedSize(
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeInOut,
-            alignment: Alignment.topCenter,
-            child: expanded
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                    child: Column(
-                      children: [
-                        for (final chapter in group.chapters)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: _ChapterRow(
-                              chapter: chapter,
-                              isCurrent: chapter.number == currentChapter,
-                              isRead: completed.contains(chapter.number),
-                              isNew: newChapters.contains(chapter.number),
-                              onTap: () => onOpenChapter(chapter),
-                            ),
-                          ),
-                      ],
-                    ),
-                  )
-                : const SizedBox(width: double.infinity),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -487,29 +455,26 @@ class _ChapterRow extends StatelessWidget {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
 
-    final languageNames = {
-      'EN': 'English',
-      'JA': 'Japanese',
-      'ES': 'Spanish',
-      'FR': 'French',
-      'ZH': 'Chinese',
-      'KO': 'Korean',
-      'DE': 'German',
-      'IT': 'Italian',
-      'PT': 'PT-BR',
-      'RU': 'Russian',
-      'AR': 'Arabic',
-      'HI': 'Hindi',
+    const languageFlags = {
+      'EN': '🇬🇧',
+      'JA': '🇯🇵',
+      'ES': '🇪🇸',
+      'ID': '🇮🇩',
+      'RU': '🇷🇺',
+      'PT': '🇵🇹',
+      'FR': '🇫🇷',
+      'KO': '🇰🇷',
+      'ZH': '🇨🇳',
+      'DE': '🇩🇪',
+      'IT': '🇮🇹',
+      'AR': '🇸🇦',
+      'HI': '🇮🇳',
     };
-    final langName = languageNames[chapter.language.toUpperCase()] ?? chapter.language;
+    final flag = languageFlags[chapter.language.toUpperCase()] ?? '🌐';
 
-    const String showText = '✓ Show';
+    final isOfficial = chapter.scanGroup == 'Official';
 
-    final String badgeText = langName;
-
-    final isEnglish = chapter.language.toUpperCase() == 'EN';
-
-    final cardWidget = Card(
+    final rowWidget = Card(
       elevation: isCurrent ? 4 : 0,
       color: isCurrent
           ? theme.colorScheme.primary.withValues(alpha: 0.08)
@@ -524,145 +489,76 @@ class _ChapterRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
-              // Language indicator dot (Green for English, Orange for Non-English)
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isEnglish ? const Color(0xFF4CAF50) : const Color(0xFFFF9800),
-                ),
+              // Flag emoji
+              Text(
+                flag,
+                style: const TextStyle(fontSize: 18),
               ),
               const SizedBox(width: 14),
-              // Chapter Title & Info
+
+              // Chapter info
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            chapter.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: isCurrent ? primaryColor : null,
-                            ),
-                          ),
-                        ),
-                        if (isNew) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.error,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'NEW',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.onError,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 9,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: theme.colorScheme.outline.withValues(alpha: 0.08),
-                        ),
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: chapter.language.toUpperCase() == 'EN'
-                                    ? const Color(0xFF4CAF50)
-                                    : const Color(0xFFFF9800),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              badgeText,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
+                    Text(
+                      'Ch. ${chapter.number}',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: isCurrent ? primaryColor : null,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            chapter.scanGroup,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                            ),
+                    const SizedBox(width: 6),
+                    if (isOfficial) ...[
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        color: Color(0xFF4CAF50),
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    if (chapter.title.isNotEmpty && chapter.title != 'Chapter ${chapter.number}') ...[
+                      Text(
+                        '•',
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          chapter.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '•',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          chapter.date,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ],
                 ),
               ),
+
               const SizedBox(width: 8),
-              // Language Tag / Show Button
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.2),
-                  ),
+
+              // Date
+              Text(
+                chapter.date,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
-                child: Text(
-                  showText,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              // Bookmark icon/status
+              Icon(
+                isRead ? Icons.bookmark_added_rounded : Icons.bookmark_border_rounded,
+                size: 18,
+                color: isRead ? primaryColor : theme.colorScheme.onSurface.withValues(alpha: 0.3),
               ),
             ],
           ),
@@ -673,16 +569,12 @@ class _ChapterRow extends StatelessWidget {
     if (isRead) {
       return Opacity(
         opacity: 0.6,
-        child: cardWidget,
+        child: rowWidget,
       );
     }
-    return cardWidget;
+    return rowWidget;
   }
 }
-
-// ==========================================================================
-// SHIMMER SKELETON LOADER FOR CHAPTERS LIST
-// ==========================================================================
 
 class _SkeletonChapters extends StatelessWidget {
   const _SkeletonChapters();

@@ -29,6 +29,8 @@ enum ReadingModeOption { continuous, pageByPage }
 
 enum ImageQualityOption { dataSaver, standard, high }
 
+enum ExternalChapterOption { alwaysAsk, openInBrowser, openInChromeCustomTabs, copyLinkOnly }
+
 class AppSettings {
   // Appearance
   final ThemeOption themeOption;
@@ -55,6 +57,7 @@ class AppSettings {
   final bool doubleTapZoom;
   final bool keepScreenOn;
   final bool rememberLastPage;
+  final ExternalChapterOption externalChapterOption;
 
   // Notifications
   final bool notifyNewEpisodes;
@@ -88,6 +91,22 @@ class AppSettings {
   final bool discoverIsManga;
   final String lastHomeTab;
 
+  // AniList & MyAnimeList integration fields
+  final String syncPriority; // "anilist", "myanimelist", "ask"
+  final String? dontRemindUpdateDate;
+  final String? aniListToken;
+  final String? aniListUsername;
+  final int? aniListUserId;
+  final String? aniListLastSync;
+  final String? malToken;
+  final String? malRefreshToken;
+  final String? malTokenExpiresAt;
+  final String? malUsername;
+  final String? malLastSync;
+  final String? aniListAvatar;
+  final String? malAvatar;
+  final String? libraryMergePreference;
+
   const AppSettings({
     required this.themeOption,
     required this.amoledTheme,
@@ -107,6 +126,7 @@ class AppSettings {
     required this.doubleTapZoom,
     required this.keepScreenOn,
     required this.rememberLastPage,
+    required this.externalChapterOption,
     required this.notifyNewEpisodes,
     required this.notifyNewChapters,
     required this.notifyContinueWatching,
@@ -131,6 +151,20 @@ class AppSettings {
     required this.discoverSortBy,
     required this.discoverIsManga,
     required this.lastHomeTab,
+    required this.syncPriority,
+    this.dontRemindUpdateDate,
+    this.aniListToken,
+    this.aniListUsername,
+    this.aniListUserId,
+    this.aniListLastSync,
+    this.malToken,
+    this.malRefreshToken,
+    this.malTokenExpiresAt,
+    this.malUsername,
+    this.malLastSync,
+    this.aniListAvatar,
+    this.malAvatar,
+    this.libraryMergePreference,
   });
 
   factory AppSettings.defaultSettings() {
@@ -153,6 +187,7 @@ class AppSettings {
       doubleTapZoom: true,
       keepScreenOn: false,
       rememberLastPage: true,
+      externalChapterOption: ExternalChapterOption.alwaysAsk,
       notifyNewEpisodes: true,
       notifyNewChapters: true,
       notifyContinueWatching: true,
@@ -177,6 +212,20 @@ class AppSettings {
       discoverSortBy: "Default",
       discoverIsManga: false,
       lastHomeTab: "anime",
+      syncPriority: "ask",
+      dontRemindUpdateDate: null,
+      aniListToken: null,
+      aniListUsername: null,
+      aniListUserId: null,
+      aniListLastSync: null,
+      malToken: null,
+      malRefreshToken: null,
+      malTokenExpiresAt: null,
+      malUsername: null,
+      malLastSync: null,
+      aniListAvatar: null,
+      malAvatar: null,
+      libraryMergePreference: null,
     );
   }
 
@@ -199,6 +248,7 @@ class AppSettings {
     bool? doubleTapZoom,
     bool? keepScreenOn,
     bool? rememberLastPage,
+    ExternalChapterOption? externalChapterOption,
     bool? notifyNewEpisodes,
     bool? notifyNewChapters,
     bool? notifyContinueWatching,
@@ -223,9 +273,26 @@ class AppSettings {
     String? discoverSortBy,
     bool? discoverIsManga,
     String? lastHomeTab,
+    String? syncPriority,
+    String? dontRemindUpdateDate,
+    String? aniListToken,
+    String? aniListUsername,
+    int? aniListUserId,
+    String? aniListLastSync,
+    String? malToken,
+    String? malRefreshToken,
+    String? malTokenExpiresAt,
+    String? malUsername,
+    String? malLastSync,
+    String? aniListAvatar,
+    String? malAvatar,
+    String? libraryMergePreference,
     bool clearSeason = false,
     bool clearMinRange = false,
     bool clearMaxRange = false,
+    bool clearAniListToken = false,
+    bool clearMalToken = false,
+    bool clearLibraryMergePreference = false,
   }) {
     return AppSettings(
       themeOption: themeOption ?? this.themeOption,
@@ -246,6 +313,7 @@ class AppSettings {
       doubleTapZoom: doubleTapZoom ?? this.doubleTapZoom,
       keepScreenOn: keepScreenOn ?? this.keepScreenOn,
       rememberLastPage: rememberLastPage ?? this.rememberLastPage,
+      externalChapterOption: externalChapterOption ?? this.externalChapterOption,
       notifyNewEpisodes: notifyNewEpisodes ?? this.notifyNewEpisodes,
       notifyNewChapters: notifyNewChapters ?? this.notifyNewChapters,
       notifyContinueWatching: notifyContinueWatching ?? this.notifyContinueWatching,
@@ -270,6 +338,20 @@ class AppSettings {
       discoverSortBy: discoverSortBy ?? this.discoverSortBy,
       discoverIsManga: discoverIsManga ?? this.discoverIsManga,
       lastHomeTab: lastHomeTab ?? this.lastHomeTab,
+      syncPriority: syncPriority ?? this.syncPriority,
+      dontRemindUpdateDate: dontRemindUpdateDate ?? this.dontRemindUpdateDate,
+      aniListToken: clearAniListToken ? null : (aniListToken ?? this.aniListToken),
+      aniListUsername: clearAniListToken ? null : (aniListUsername ?? this.aniListUsername),
+      aniListUserId: clearAniListToken ? null : (aniListUserId ?? this.aniListUserId),
+      aniListLastSync: clearAniListToken ? null : (aniListLastSync ?? this.aniListLastSync),
+      malToken: clearMalToken ? null : (malToken ?? this.malToken),
+      malRefreshToken: clearMalToken ? null : (malRefreshToken ?? this.malRefreshToken),
+      malTokenExpiresAt: clearMalToken ? null : (malTokenExpiresAt ?? this.malTokenExpiresAt),
+      malUsername: clearMalToken ? null : (malUsername ?? this.malUsername),
+      malLastSync: clearMalToken ? null : (malLastSync ?? this.malLastSync),
+      aniListAvatar: clearAniListToken ? null : (aniListAvatar ?? this.aniListAvatar),
+      malAvatar: clearMalToken ? null : (malAvatar ?? this.malAvatar),
+      libraryMergePreference: clearLibraryMergePreference ? null : (libraryMergePreference ?? this.libraryMergePreference),
     );
   }
 
@@ -293,6 +375,7 @@ class AppSettings {
       'doubleTapZoom': doubleTapZoom,
       'keepScreenOn': keepScreenOn,
       'rememberLastPage': rememberLastPage,
+      'externalChapterOption': externalChapterOption.name,
       'notifyNewEpisodes': notifyNewEpisodes,
       'notifyNewChapters': notifyNewChapters,
       'notifyContinueWatching': notifyContinueWatching,
@@ -317,6 +400,20 @@ class AppSettings {
       'discoverSortBy': discoverSortBy,
       'discoverIsManga': discoverIsManga,
       'lastHomeTab': lastHomeTab,
+      'syncPriority': syncPriority,
+      'dontRemindUpdateDate': dontRemindUpdateDate,
+      'aniListToken': aniListToken,
+      'aniListUsername': aniListUsername,
+      'aniListUserId': aniListUserId,
+      'aniListLastSync': aniListLastSync,
+      'malToken': malToken,
+      'malRefreshToken': malRefreshToken,
+      'malTokenExpiresAt': malTokenExpiresAt,
+      'malUsername': malUsername,
+      'malLastSync': malLastSync,
+      'aniListAvatar': aniListAvatar,
+      'malAvatar': malAvatar,
+      'libraryMergePreference': libraryMergePreference,
     };
   }
 
@@ -345,6 +442,9 @@ class AppSettings {
     ImageQualityOption parseImgQuality(String? val) {
       return ImageQualityOption.values.firstWhere((e) => e.name == val, orElse: () => ImageQualityOption.standard);
     }
+    ExternalChapterOption parseExternalChapter(String? val) {
+      return ExternalChapterOption.values.firstWhere((e) => e.name == val, orElse: () => ExternalChapterOption.alwaysAsk);
+    }
 
     final def = AppSettings.defaultSettings();
     return AppSettings(
@@ -366,6 +466,7 @@ class AppSettings {
       doubleTapZoom: json['doubleTapZoom'] ?? def.doubleTapZoom,
       keepScreenOn: json['keepScreenOn'] ?? def.keepScreenOn,
       rememberLastPage: json['rememberLastPage'] ?? def.rememberLastPage,
+      externalChapterOption: parseExternalChapter(json['externalChapterOption']),
       notifyNewEpisodes: json['notifyNewEpisodes'] ?? def.notifyNewEpisodes,
       notifyNewChapters: json['notifyNewChapters'] ?? def.notifyNewChapters,
       notifyContinueWatching: json['notifyContinueWatching'] ?? def.notifyContinueWatching,
@@ -376,9 +477,6 @@ class AppSettings {
       preferredSubtitleLanguage: json['preferredSubtitleLanguage'] ?? def.preferredSubtitleLanguage,
       preferredAudioLanguage: json['preferredAudioLanguage'] ?? def.preferredAudioLanguage,
       region: json['region'] ?? def.region,
-      // Use containsKey so an explicitly-saved empty list [] stays empty and
-      // never falls back to the built-in defaults (Adult, Ecchi, Hentai, Smut).
-      // Defaults are only used when the key is completely absent (first launch).
       blockedGenres: json.containsKey('blockedGenres')
           ? (json['blockedGenres'] as List).map((e) => e.toString()).toList()
           : def.blockedGenres,
@@ -395,6 +493,21 @@ class AppSettings {
       discoverSortBy: json['discoverSortBy'] ?? def.discoverSortBy,
       discoverIsManga: json['discoverIsManga'] ?? def.discoverIsManga,
       lastHomeTab: json['lastHomeTab'] ?? def.lastHomeTab,
+      syncPriority: json['syncPriority'] ?? def.syncPriority,
+      dontRemindUpdateDate: json['dontRemindUpdateDate'] as String?,
+      aniListToken: json['aniListToken'] as String?,
+      aniListUsername: json['aniListUsername'] as String?,
+      aniListUserId: json['aniListUserId'] as int?,
+      aniListLastSync: json['aniListLastSync'] as String?,
+      malToken: json['malToken'] as String?,
+      malRefreshToken: json['malRefreshToken'] as String?,
+      malTokenExpiresAt: json['malTokenExpiresAt'] as String?,
+      malUsername: json['malUsername'] as String?,
+      malLastSync: json['malLastSync'] as String?,
+      aniListAvatar: json['aniListAvatar'] as String?,
+      malAvatar: json['malAvatar'] as String?,
+      libraryMergePreference: json['libraryMergePreference'] as String?,
     );
   }
 }
+

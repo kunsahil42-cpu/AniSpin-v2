@@ -58,7 +58,7 @@ class AnimeMergeService {
   }
 
   AnimeDetailsModel fromJikan(Map<String, dynamic> j) {
-    final rating = j['rating'] as String?;
+    final rating = j['rating']?.toString();
     final isAdult = rating != null &&
         (rating.toLowerCase().contains('rx') || rating.toLowerCase().contains('hentai'));
 
@@ -66,8 +66,8 @@ class AnimeMergeService {
       id: JikanFieldUtils.intField(j, 'mal_id') ?? 0,
       idMal: JikanFieldUtils.intField(j, 'mal_id'),
       romajiTitle: JikanFieldUtils.string(j['title']),
-      englishTitle: j['title_english'] as String?,
-      nativeTitle: j['title_japanese'] as String?,
+      englishTitle: j['title_english']?.toString(),
+      nativeTitle: j['title_japanese']?.toString(),
       description: JikanFieldUtils.string(j['synopsis']),
       bannerImage: JikanFieldUtils.banner(j),
       coverImage: JikanFieldUtils.cover(j),

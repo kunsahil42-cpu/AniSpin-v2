@@ -17,7 +17,7 @@ class MangaFavoriteCard extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(20),
       onTap: () {
-        context.push('/manga/${manga.mangaId}');
+        context.push('/manga/${manga.mangaId}?title=${Uri.encodeComponent(manga.romajiTitle)}');
       },
       child: Card(
         elevation: 4,

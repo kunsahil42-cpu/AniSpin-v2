@@ -40,7 +40,7 @@ class AnimeCard extends StatelessWidget {
       width: cardWidth,
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: () => context.push('/anime/$animeId'),
+        onTap: () => context.push('/anime/$animeId?title=${Uri.encodeComponent(title)}'),
         child: Card(
           margin: const EdgeInsets.symmetric(vertical: 4),
           elevation: 10,

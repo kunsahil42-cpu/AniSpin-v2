@@ -1,14 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/network/mangadex/mangadex_api.dart';
 import '../models/manga_home_model.dart';
 import '../repository/manga_home_repository.dart';
 import '../../../core/utils/genre_filter.dart';
 import '../../settings/providers/settings_provider.dart';
 
 final mangaHomeRepositoryProvider = Provider<MangaHomeRepository>((ref) {
-  return MangaHomeRepository(
-    mangaDex: ref.watch(mangaDexApiProvider),
-  );
+  return MangaHomeRepository();
 });
 
 final mangaHomeSectionProvider = FutureProvider.family<List<MangaHomeModel>, MangaHomeSection>((ref, section) async {
